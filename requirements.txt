@@ -1,0 +1,10 @@
+# 日期: 2026-06-01
+# 开发者: 橘雪莉
+# 功能: Python依赖清单 - FastAPI/uvicorn/httpx/aiosqlite/tenacity
+# 模型: mimo/mimo-v2.5
+
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+httpx>=0.27,<1.0
+aiosqlite>=0.20,<1.0
+tenacity>=9.0,<10.0

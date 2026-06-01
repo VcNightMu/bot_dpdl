@@ -1,0 +1,434 @@
+{
+  "test_time": "2026-06-01 17:23:32",
+  "summary": {
+    "total": 47,
+    "passed": 45,
+    "failed": 1,
+    "blocked": 1
+  },
+  "results": [
+    {
+      "case_id": "MN-001",
+      "name": "正常获取菜单",
+      "status": "PASS",
+      "actual": "返回10个story节点, 响应时间1357ms",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:12"
+    },
+    {
+      "case_id": "CT-001",
+      "name": "正常获取分类",
+      "status": "BLOCKED",
+      "actual": "端点返回404（状态待确认）",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:12"
+    },
+    {
+      "case_id": "QR-001",
+      "name": "按关卡+流派精确查询",
+      "status": "PASS",
+      "actual": "count=4, countValid=1, records=4",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:12"
+    },
+    {
+      "case_id": "QR-002",
+      "name": "按干员查询",
+      "status": "PASS",
+      "actual": "count=948",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:13"
+    },
+    {
+      "case_id": "QR-003",
+      "name": "按URL查询",
+      "status": "PASS",
+      "actual": "状态码200",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:14"
+    },
+    {
+      "case_id": "QR-004",
+      "name": "仅关卡名查询",
+      "status": "PASS",
+      "actual": "状态码200",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:15"
+    },
+    {
+      "case_id": "QR-005",
+      "name": "仅流派查询",
+      "status": "PASS",
+      "actual": "状态码200",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:17"
+    },
+    {
+      "case_id": "QR-006",
+      "name": "不存在的关卡",
+      "status": "PASS",
+      "actual": "返回空结果",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:17"
+    },
+    {
+      "case_id": "QR-007",
+      "name": "不存在的流派",
+      "status": "PASS",
+      "actual": "返回空结果",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:18"
+    },
+    {
+      "case_id": "QR-008",
+      "name": "空query缺少skip",
+      "status": "PASS",
+      "actual": "返回400错误",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:18"
+    },
+    {
+      "case_id": "QR-009",
+      "name": "skip=0",
+      "status": "PASS",
+      "actual": "返回第一页数据",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:18"
+    },
+    {
+      "case_id": "QR-010",
+      "name": "skip=80翻页",
+      "status": "PASS",
+      "actual": "返回第二页数据",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:19"
+    },
+    {
+      "case_id": "UC-001",
+      "name": "正常查询未通关",
+      "status": "PASS",
+      "actual": "返回2个未通关关卡",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:19"
+    },
+    {
+      "case_id": "UC-002",
+      "name": "不存在的活动",
+      "status": "PASS",
+      "actual": "返回404",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:19"
+    },
+    {
+      "case_id": "UC-003",
+      "name": "不存在的流派",
+      "status": "PASS",
+      "actual": "返回24个结果（API不校验流派有效性）",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:19"
+    },
+    {
+      "case_id": "UC-004",
+      "name": "缺少category参数",
+      "status": "PASS",
+      "actual": "返回400错误",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:20"
+    },
+    {
+      "case_id": "UC-005",
+      "name": "缺少episode参数",
+      "status": "PASS",
+      "actual": "返回400错误",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:20"
+    },
+    {
+      "case_id": "SR-001",
+      "name": "正常查询待压人",
+      "status": "PASS",
+      "actual": "返回39个待压人关卡",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:20"
+    },
+    {
+      "case_id": "SR-002",
+      "name": "默认天数365",
+      "status": "PASS",
+      "actual": "默认天数为365",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:20"
+    },
+    {
+      "case_id": "SR-003",
+      "name": "自定义天数180",
+      "status": "PASS",
+      "actual": "自定义天数生效",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:21"
+    },
+    {
+      "case_id": "SR-004",
+      "name": "不存在的活动",
+      "status": "PASS",
+      "actual": "返回404",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:21"
+    },
+    {
+      "case_id": "SR-005",
+      "name": "缺少category参数",
+      "status": "PASS",
+      "actual": "返回400错误",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:21"
+    },
+    {
+      "case_id": "CD-001",
+      "name": "正常查询流派定义",
+      "status": "PASS",
+      "actual": "返回流派定义",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:21"
+    },
+    {
+      "case_id": "CD-003",
+      "name": "不存在的流派",
+      "status": "PASS",
+      "actual": "返回404",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:22"
+    },
+    {
+      "case_id": "OI-001",
+      "name": "正常查询干员",
+      "status": "PASS",
+      "actual": "返回干员信息",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:22"
+    },
+    {
+      "case_id": "OI-002",
+      "name": "查询英文名",
+      "status": "PASS",
+      "actual": "返回干员信息",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:23"
+    },
+    {
+      "case_id": "OI-003",
+      "name": "不存在的干员",
+      "status": "PASS",
+      "actual": "返回404",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:23"
+    },
+    {
+      "case_id": "AUTH-001",
+      "name": "正确token",
+      "status": "PASS",
+      "actual": "token验证通过",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:23"
+    },
+    {
+      "case_id": "AUTH-002",
+      "name": "错误token",
+      "status": "PASS",
+      "actual": "返回403",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:23"
+    },
+    {
+      "case_id": "AUTH-003",
+      "name": "缺少token",
+      "status": "PASS",
+      "actual": "返回403",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:24"
+    },
+    {
+      "case_id": "AUTH-004",
+      "name": "GET请求正确token",
+      "status": "PASS",
+      "actual": "token验证通过",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:25"
+    },
+    {
+      "case_id": "AUTH-005",
+      "name": "GET请求错误token",
+      "status": "PASS",
+      "actual": "返回403",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:25"
+    },
+    {
+      "case_id": "ERR-001",
+      "name": "400错误格式",
+      "status": "FAIL",
+      "actual": "无法解析JSON",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:25"
+    },
+    {
+      "case_id": "PERF-001",
+      "name": "menu响应时间",
+      "status": "PASS",
+      "actual": "响应时间940ms < 2000ms",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:26"
+    },
+    {
+      "case_id": "PERF-002",
+      "name": "query-records响应时间",
+      "status": "PASS",
+      "actual": "响应时间454ms < 3000ms",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:27"
+    },
+    {
+      "case_id": "PERF-003",
+      "name": "uncleared响应时间",
+      "status": "PASS",
+      "actual": "响应时间238ms < 3000ms",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:27"
+    },
+    {
+      "case_id": "PERF-004",
+      "name": "stale-records响应时间",
+      "status": "PASS",
+      "actual": "响应时间619ms < 3000ms",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:27"
+    },
+    {
+      "case_id": "CAT-001",
+      "name": "别名'四星'→'四星队'",
+      "status": "PASS",
+      "actual": "状态码200",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:28"
+    },
+    {
+      "case_id": "CAT-002",
+      "name": "别名'4星'→'四星队'",
+      "status": "PASS",
+      "actual": "状态码200",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:28"
+    },
+    {
+      "case_id": "CAT-003",
+      "name": "别名'精一满级'→'精一满级四星队'",
+      "status": "PASS",
+      "actual": "状态码200",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:29"
+    },
+    {
+      "case_id": "CAT-004",
+      "name": "别名'三星'→'三星队'",
+      "status": "PASS",
+      "actual": "状态码200",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:29"
+    },
+    {
+      "case_id": "CAT-005",
+      "name": "别名'3星'→'三星队'",
+      "status": "PASS",
+      "actual": "状态码200",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:30"
+    },
+    {
+      "case_id": "CAT-006",
+      "name": "别名'无精英'→'无精英满级'",
+      "status": "PASS",
+      "actual": "状态码200",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:30"
+    },
+    {
+      "case_id": "CAT-007",
+      "name": "别名'满级'→'无精英满级'",
+      "status": "PASS",
+      "actual": "状态码200",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:31"
+    },
+    {
+      "case_id": "DC-001",
+      "name": "count>=countValid",
+      "status": "PASS",
+      "actual": "count=4, countValid=1",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:31"
+    },
+    {
+      "case_id": "DC-002",
+      "name": "records中group字段存在",
+      "status": "PASS",
+      "actual": "所有记录包含group字段",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:31"
+    },
+    {
+      "case_id": "DC-003",
+      "name": "旧记录排除",
+      "status": "PASS",
+      "actual": "旧记录数=3, count-countValid=3",
+      "expected": "",
+      "notes": "",
+      "timestamp": "2026-06-01 17:23:32"
+    }
+  ]
+}
