@@ -1,10 +1,12 @@
-# 日期: 2026-06-01
+# 日期: 2026-06-02
 # 开发者: 橘雪莉
 # 功能: OneBot11协议适配器 - 通过HTTP API与NapCat通信，发送群消息
 # 模型: mimo/mimo-v2.5
 
 """OneBot11协议适配 - 与NapCat通信"""
+import asyncio
 import logging
+import random
 
 import httpx
 
@@ -23,6 +25,11 @@ class OneBotAdapter:
     async def send_group_msg(self, group_id: int, message: str) -> bool:
         """发送群消息"""
         try:
+            # 随机延迟1-3秒，避免消息发送过快被风控
+            delay = random.uniform(1.0, 3.0)
+            logger.debug(f"发送延迟: {delay:.1f}s")
+            await asyncio.sleep(delay)
+            
             response = await self.client.post(
                 f"{self.base_url}/send_group_msg",
                 json={
