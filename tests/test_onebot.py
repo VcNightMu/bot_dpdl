@@ -96,6 +96,89 @@ class TestSendGroupMsg:
         assert call_args[1]["json"]["message"] == "Hello"
 
 
+class TestSendDelay:
+    """测试发送前随机延迟（防风控）"""
+
+    @pytest.mark.asyncio
+    async def test_delay_is_called(self, adapter):
+        """验证 asyncio.sleep 被调用（存在延迟）"""
+        adj, mock_client = adapter
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"retcode": 0}
+        mock_resp.raise_for_status = MagicMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+
+        with patch("qq_bot.onebot.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            await adj.send_group_msg(group_id=12345, message="测试延迟")
+            mock_sleep.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_delay_range(self, adapter):
+        """验证延迟时间在 1-3 秒范围内"""
+        adj, mock_client = adapter
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"retcode": 0}
+        mock_resp.raise_for_status = MagicMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+
+        with patch("qq_bot.onebot.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            await adj.send_group_msg(group_id=12345, message="测试范围")
+            delay = mock_sleep.call_args[0][0]
+            assert 1.0 <= delay <= 3.0, f"延迟 {delay}s 不在 1-3 秒范围内"
+
+    @pytest.mark.asyncio
+    async def test_delay_success_result(self, adapter):
+        """验证延迟不影响成功返回值"""
+        adj, mock_client = adapter
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"retcode": 0}
+        mock_resp.raise_for_status = MagicMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+
+        with patch("qq_bot.onebot.asyncio.sleep", new_callable=AsyncMock):
+            result = await adj.send_group_msg(group_id=12345, message="测试成功")
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_delay_failure_result(self, adapter):
+        """验证延迟不影响失败返回值"""
+        adj, mock_client = adapter
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"retcode": 1, "msg": "failed"}
+        mock_resp.raise_for_status = MagicMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+
+        with patch("qq_bot.onebot.asyncio.sleep", new_callable=AsyncMock):
+            result = await adj.send_group_msg(group_id=12345, message="测试失败")
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_delay_before_request(self, adapter):
+        """验证延迟在 HTTP 请求之前执行"""
+        adj, mock_client = adapter
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"retcode": 0}
+        mock_resp.raise_for_status = MagicMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+
+        call_order = []
+        async def fake_sleep(s):
+            call_order.append("sleep")
+        async def fake_post(*args, **kwargs):
+            call_order.append("post")
+            return mock_resp
+
+        with patch("qq_bot.onebot.asyncio.sleep", side_effect=fake_sleep):
+            mock_client.post = AsyncMock(side_effect=fake_post)
+            await adj.send_group_msg(group_id=12345, message="测试顺序")
+        assert call_order == ["sleep", "post"], f"执行顺序错误: {call_order}"
+
+
 class TestClose:
     """测试关闭"""
 
