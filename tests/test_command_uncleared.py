@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 sys.path.insert(0, r"F:\ArkCodes\bot_dpdl")
 
-from qq_bot.commands.uncleared import handle_uncleared
+from qq_bot.commands.uncleared import handle_uncleared, filter_uncleared
 
 
 # --- Mock 数据 ---
@@ -126,3 +126,73 @@ class TestHandleUncleared:
             result = await handle_uncleared(match, group_id=1, user_id=2, operation_index=test_index)
             call_args = mock_fmt.call_args
             assert call_args[0][3] is test_index
+
+
+class TestFilterUncleared:
+    """测试 filter_uncleared - 突袭等效普通过滤"""
+
+    def test_only_normal_with_challenge_removed(self):
+        """has_challenge=True，只有normal → 去掉"""
+        uncleared = [
+            {"operation": "17-10", "cn_name": "裂变临界", "difficulty": "normal"},
+        ]
+        op_index = {"by_operation": {"17-10": {"has_challenge": True}}}
+        result = filter_uncleared(uncleared, op_index)
+        assert len(result) == 0
+
+    def test_only_challenge_kept(self):
+        """has_challenge=True，只有challenge → 保留"""
+        uncleared = [
+            {"operation": "17-10", "cn_name": "裂变临界", "difficulty": "challenge"},
+        ]
+        op_index = {"by_operation": {"17-10": {"has_challenge": True}}}
+        result = filter_uncleared(uncleared, op_index)
+        assert len(result) == 1
+        assert result[0]["difficulty"] == "challenge"
+
+    def test_both_kept(self):
+        """has_challenge=True，两个都有 → 保留两条"""
+        uncleared = [
+            {"operation": "17-10", "cn_name": "裂变临界", "difficulty": "challenge"},
+            {"operation": "17-10", "cn_name": "裂变临界", "difficulty": "normal"},
+        ]
+        op_index = {"by_operation": {"17-10": {"has_challenge": True}}}
+        result = filter_uncleared(uncleared, op_index)
+        assert len(result) == 2
+
+    def test_no_challenge_mode_not_filtered(self):
+        """has_challenge=False → 不过滤"""
+        uncleared = [
+            {"operation": "GT-1", "cn_name": "打磨利刃", "difficulty": "normal"},
+        ]
+        op_index = {"by_operation": {"GT-1": {"has_challenge": False}}}
+        result = filter_uncleared(uncleared, op_index)
+        assert len(result) == 1
+
+    def test_no_operation_index_passthrough(self):
+        """没有operation_index → 原样返回"""
+        uncleared = [
+            {"operation": "17-10", "difficulty": "normal"},
+        ]
+        result = filter_uncleared(uncleared, None)
+        assert len(result) == 1
+
+    def test_mixed_stages(self):
+        """混合场景：一个被过滤，一个保留"""
+        uncleared = [
+            {"operation": "17-10", "cn_name": "裂变临界", "difficulty": "normal"},
+            {"operation": "17-11", "cn_name": "归程信号", "difficulty": "challenge"},
+            {"operation": "TR-28", "cn_name": "人权宣言", "difficulty": "normal"},
+        ]
+        op_index = {
+            "by_operation": {
+                "17-10": {"has_challenge": True},
+                "17-11": {"has_challenge": True},
+                "TR-28": {"has_challenge": False},
+            }
+        }
+        result = filter_uncleared(uncleared, op_index)
+        ops = [(item["operation"], item["difficulty"]) for item in result]
+        assert ("17-10", "normal") not in ops  # 被过滤
+        assert ("17-11", "challenge") in ops   # 保留
+        assert ("TR-28", "normal") in ops      # 无突袭，保留
