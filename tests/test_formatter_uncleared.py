@@ -70,62 +70,24 @@ class TestFormatUncleared:
         result = format_uncleared("ep", "cat", [])
         assert isinstance(result, str)
 
-    def test_supplement_challenge_only_challenge_received(self):
-        """有突袭的关卡只收到challenge时，补上normal"""
+    def test_only_challenge_received_shows_tag(self):
+        """只收到challenge时，正常展示带突袭标签"""
         uncleared = [
             {"operation": "H11-1", "cn_name": "惊霆行动-1", "difficulty": "challenge"},
         ]
         op_index = {"by_operation": {"H11-1": {"has_challenge": True}}}
         result = format_uncleared("惊霆无声", "四星队", uncleared, op_index)
         assert "[突袭]" in result
-        assert "[普通]" in result
-        assert "2个" in result
-
-    def test_supplement_challenge_only_normal_received(self):
-        """有突袭的关卡只收到normal时，补上challenge"""
-        uncleared = [
-            {"operation": "H11-1", "cn_name": "惊霆行动-1", "difficulty": "normal"},
-        ]
-        op_index = {"by_operation": {"H11-1": {"has_challenge": True}}}
-        result = format_uncleared("惊霆无声", "四星队", uncleared, op_index)
-        assert "[突袭]" in result
-        assert "[普通]" in result
-        assert "2个" in result
-
-    def test_no_supplement_when_both_received(self):
-        """已有两种difficulty时不重复补全"""
-        uncleared = [
-            {"operation": "H11-1", "cn_name": "惊霆行动-1", "difficulty": "challenge"},
-            {"operation": "H11-1", "cn_name": "惊霆行动-1", "difficulty": "normal"},
-        ]
-        op_index = {"by_operation": {"H11-1": {"has_challenge": True}}}
-        result = format_uncleared("惊霆无声", "四星队", uncleared, op_index)
-        assert "2个" in result
-
-    def test_no_supplement_when_no_challenge_mode(self):
-        """has_challenge=False时不补全"""
-        uncleared = [
-            {"operation": "GT-1", "cn_name": "打磨利刃", "difficulty": "normal"},
-        ]
-        op_index = {"by_operation": {"GT-1": {"has_challenge": False}}}
-        result = format_uncleared("行动", "四星队", uncleared, op_index)
-        assert "1个" in result
         assert "[普通]" not in result
-        assert "[突袭]" not in result
+        assert "1个" in result
 
-    def test_supplement_mixed_stages(self):
-        """多个关卡混合：有的需要补全，有的不需要"""
+    def test_only_normal_received_no_tag(self):
+        """只收到normal时，显示普通标签"""
         uncleared = [
-            {"operation": "H11-1", "cn_name": "惊霆行动-1", "difficulty": "challenge"},
-            {"operation": "GT-1", "cn_name": "打磨利刃", "difficulty": "normal"},
+            {"operation": "H11-1", "cn_name": "惊霆行动-1", "difficulty": "normal"},
         ]
-        op_index = {
-            "by_operation": {
-                "H11-1": {"has_challenge": True},
-                "GT-1": {"has_challenge": False},
-            }
-        }
+        op_index = {"by_operation": {"H11-1": {"has_challenge": True}}}
         result = format_uncleared("惊霆无声", "四星队", uncleared, op_index)
-        assert "3个" in result  # H11-1补1个 + GT-1原样
-        assert "[突袭]" in result
+        assert "[突袭]" not in result
         assert "[普通]" in result
+        assert "1个" in result
