@@ -11,30 +11,49 @@ class TestNormalizeCategory:
 
     @pytest.mark.parametrize("name", CATEGORIES)
     def test_exact_match_all_categories(self, name):
-        """7个标准流派名直接匹配"""
+        """9个标准流派名直接匹配"""
         assert normalize_category(name) == name
 
     @pytest.mark.parametrize("alias,expected", [
+        # 四星队
         ("四星", "四星队"),
         ("4星", "四星队"),
         ("四星队伍", "四星队"),
-        ("精一满级", "精一满级四星队"),
-        ("精一满级队", "精一满级四星队"),
+        ("满配四", "四星队"),
+        ("2704", "四星队"),
+        # 精一满级四星队
         ("精一满级四星", "精一满级四星队"),
-        ("精一1级四星队", "精一1级四星队"),
-        ("精一一级", "精一1级四星队"),
-        ("精一1级队", "精一1级四星队"),
-        ("精一一级队", "精一1级四星队"),
+        ("1604", "精一满级四星队"),
+        ("无核", "精一满级四星队"),
+        # 精一1级四星队
+        ("114", "精一1级四星队"),
+        ("精一一级四星队", "精一1级四星队"),
+        # 三星队
         ("三星", "三星队"),
         ("3星", "三星队"),
         ("三星队伍", "三星队"),
+        # 精一1级
         ("精一", "精一1级"),
-        ("精一满", "精一1级"),
+        ("101", "精一1级"),
+        ("精一一级", "精一1级"),
+        # 精一满级
+        ("精一满", "精一满级"),
+        ("180", "精一满级"),
+        # 精二1级五星队
+        ("215", "精二1级五星队"),
+        # 无精英满级
         ("无精英", "无精英满级"),
         ("满级无精英", "无精英满级"),
         ("满级", "无精英满级"),
+        ("e0", "无精英满级"),
+        ("E0", "无精英满级"),
+        ("elite0", "无精英满级"),
+        ("Elite0", "无精英满级"),
+        # 无精英1级
         ("无精英一级", "无精英1级"),
         ("无精英1级队", "无精英1级"),
+        ("全员1级", "无精英1级"),
+        ("全一", "无精英1级"),
     ])
     def test_alias_mapping(self, alias, expected):
         assert normalize_category(alias) == expected
@@ -58,7 +77,7 @@ class TestNormalizeCategory:
         assert normalize_category("四 星队") is None
 
     def test_categories_count(self):
-        assert len(CATEGORIES) == 7
+        assert len(CATEGORIES) == 9
 
     def test_aliases_not_empty(self):
         assert len(CATEGORY_ALIASES) > 0

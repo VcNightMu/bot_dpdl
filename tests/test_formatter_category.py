@@ -8,7 +8,7 @@ from resolver.category import CATEGORIES
 
 
 class TestFormatCategories:
-    def test_contains_all_seven(self):
+    def test_contains_all_categories(self):
         result = format_categories()
         for cat in CATEGORIES:
             assert cat in result
