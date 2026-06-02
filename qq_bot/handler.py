@@ -41,9 +41,17 @@ class CommandHandler:
             (re.compile(r"^#help$"), handle_help),
         ]
     
-    async def handle(self, raw_msg: str, group_id: int, user_id: int, operation_index: dict | None = None) -> str | list[str] | None:
+    async def handle(self, raw_msg: str | list, group_id: int, user_id: int, operation_index: dict | None = None) -> str | list[str] | None:
         """处理指令"""
-        msg = raw_msg.strip()
+        # 兼容 OneBot11 列表格式和纯文本格式
+        if isinstance(raw_msg, list):
+            parts = []
+            for seg in raw_msg:
+                if isinstance(seg, dict) and seg.get("type") == "text":
+                    parts.append(seg.get("data", {}).get("text", ""))
+            msg = "".join(parts)
+        else:
+            msg = raw_msg.strip()
         
         # 匹配指令
         for pattern, handler in self.commands:

@@ -101,3 +101,10 @@ class TestHandle:
         """#help 精确匹配，后面有额外文本不触发"""
         result = await handler.handle("#help 你好", group_id=1, user_id=1)
         assert result is None  # ^#help$ 不匹配 "#help 你好"
+
+    @pytest.mark.asyncio
+    async def test_list_input_converted(self, handler):
+        """OneBot11列表格式输入能正确处理"""
+        list_msg = [{"type": "text", "data": {"text": "#help"}}]
+        result = await handler.handle(list_msg, group_id=1, user_id=1)
+        assert result is not None  # 匹配到 #help
