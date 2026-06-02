@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 sys.path.insert(0, r"F:\ArkCodes\bot_dpdl")
 
-from qq_bot.commands.uncleared import handle_uncleared
+from qq_bot.commands.uncleared import handle_uncleared, _resolve_uncleared
 
 
 # --- Mock 数据 ---
@@ -65,6 +65,7 @@ class TestHandleUncleared:
              patch("qq_bot.commands.uncleared.WikiClient") as MockClient:
             mock_instance = AsyncMock()
             mock_instance.uncleared = AsyncMock(return_value=mock_result)
+            mock_instance.query_records = AsyncMock(return_value=AsyncMock(records=[]))
             mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
             mock_instance.__aexit__ = AsyncMock(return_value=False)
             MockClient.return_value = mock_instance
@@ -118,6 +119,7 @@ class TestHandleUncleared:
              patch("qq_bot.commands.uncleared.format_uncleared") as mock_fmt:
             mock_instance = AsyncMock()
             mock_instance.uncleared = AsyncMock(return_value=mock_result)
+            mock_instance.query_records = AsyncMock(return_value=AsyncMock(records=[]))
             mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
             mock_instance.__aexit__ = AsyncMock(return_value=False)
             MockClient.return_value = mock_instance
@@ -127,3 +129,90 @@ class TestHandleUncleared:
             # 验证 format_uncleared 被调用且传入了 operation_index
             call_args = mock_fmt.call_args
             assert call_args[0][3] is test_index  # 第4个参数是 operation_index
+
+    @pytest.mark.asyncio
+    async def test_filter_removes_challenge_covered(self):
+        """突袭有记录时，从uncleared中剔除该关卡"""
+
+        @dataclass
+        class MockRecord:
+            operation_type: str = "normal"
+
+        @dataclass
+        class MockQueryResult:
+            records: list = None
+            def __post_init__(self):
+                if self.records is None:
+                    self.records = []
+
+        uncleared = [
+            {"operation": "17-10", "cn_name": "裂变临界", "difficulty": "challenge", "hasChallenge": True},
+            {"operation": "17-11", "cn_name": "归程信号", "difficulty": "challenge", "hasChallenge": True},
+            {"operation": "TR-28", "cn_name": "人权宣言", "difficulty": "normal", "hasChallenge": False},
+        ]
+
+        mock_client = AsyncMock()
+        async def fake_query_records(operation, category):
+            if operation == "17-10":
+                return MockQueryResult(records=[MockRecord(operation_type="challenge")])
+            return MockQueryResult(records=[])
+        mock_client.query_records = fake_query_records
+
+        result = await _resolve_uncleared(mock_client, uncleared, "精一1级")
+        ops = [item["operation"] for item in result]
+        assert "17-10" not in ops  # 突袭有记录，被剔除
+        assert "17-11" in ops    # 突袭无记录，保留
+        assert "TR-28" in ops    # 无突袭，保留
+
+    @pytest.mark.asyncio
+    async def test_resolve_both_uncleared_shows_two(self):
+        """两种难度都没记录时，显示两条"""
+
+        @dataclass
+        class MockQueryResult:
+            records: list = None
+            def __post_init__(self):
+                if self.records is None:
+                    self.records = []
+
+        uncleared = [
+            {"operation": "17-2", "cn_name": "", "difficulty": "challenge", "hasChallenge": True},
+        ]
+
+        mock_client = AsyncMock()
+        async def fake_query(operation, category):
+            return MockQueryResult(records=[])
+        mock_client.query_records = fake_query
+
+        result = await _resolve_uncleared(mock_client, uncleared, "四星队")
+        assert len(result) == 2
+        diffs = {item["difficulty"] for item in result}
+        assert diffs == {"challenge", "normal"}
+
+    @pytest.mark.asyncio
+    async def test_resolve_only_normal_records_shows_challenge(self):
+        """只有normal有记录时，显示challenge未过"""
+
+        @dataclass
+        class MockRecord:
+            operation_type: str = "normal"
+
+        @dataclass
+        class MockQueryResult:
+            records: list = None
+            def __post_init__(self):
+                if self.records is None:
+                    self.records = []
+
+        uncleared = [
+            {"operation": "10-8", "cn_name": "", "difficulty": "challenge", "hasChallenge": True},
+        ]
+
+        mock_client = AsyncMock()
+        async def fake_query(operation, category):
+            return MockQueryResult(records=[MockRecord(operation_type="normal")])
+        mock_client.query_records = fake_query
+
+        result = await _resolve_uncleared(mock_client, uncleared, "四星队")
+        assert len(result) == 1
+        assert result[0]["difficulty"] == "challenge"
