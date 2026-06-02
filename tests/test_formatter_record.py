@@ -85,7 +85,7 @@ SAMPLE_RECORD = {
         {"name": "司霆惊蛰", "skillStr": "1"},
         {"name": "黑角", "skillStr": "1"},
     ],
-    "date_published": "2024-09-01",
+    "date_published": "2025-12-01",
     "url": "https://www.bilibili.com/video/BV1test123",
 }
 
@@ -131,6 +131,17 @@ class TestFormatSingleRecord:
         assert "普通" in result
         assert "突袭" not in result
 
+    def test_team_count_display(self):
+        """每条记录显示干员人数"""
+        result = format_single_record(SAMPLE_RECORD)
+        assert "👥 2人" in result
+
+    def test_team_count_empty(self):
+        """空队伍显示0人"""
+        rec = {**SAMPLE_RECORD, "team": []}
+        result = format_single_record(rec)
+        assert "👥 0人" in result
+
 
 # --- format_records 测试 ---
 
@@ -159,17 +170,44 @@ class TestFormatRecords:
         assert "2️⃣" in full
 
     def test_count_valid_shown_in_header(self):
-        """多条记录时 header 显示 count_valid"""
+        """header 使用 API 返回的 count_valid，不覆盖"""
         records = [SAMPLE_RECORD, SAMPLE_RECORD]
-        result = format_records(records, 5)
-        assert "5 条" in result[0]
+        result = format_records(records, 2)
+        assert "找到最佳记录 2 条" in result[0]
 
-    def test_single_record_no_header(self):
-        """单条记录不显示 header"""
+    def test_single_record_shows_count(self):
+        """单条记录也显示记录人数"""
         result = format_records([SAMPLE_RECORD], 1)
-        assert "条" not in result[0]
+        assert "共 1 条最佳记录" in result[0]
 
     def test_record_type_list(self):
         result = format_records([SAMPLE_RECORD], 1)
         assert isinstance(result, list)
         assert all(isinstance(m, str) for m in result)
+
+    def test_old_record_filtered_by_group(self):
+        """group == '旧纪录' 的记录应被过滤"""
+        old_record = {**SAMPLE_RECORD, "group": "旧纪录"}
+        result = format_records([old_record], 1)
+        assert "没有找到" in result[0]
+
+    def test_mixed_old_and_new_records(self):
+        """混合新旧记录时只保留新的（group 为空的），header 用 API 的 count_valid"""
+        old_record = {**SAMPLE_RECORD, "group": "旧纪录"}
+        new_record = {**SAMPLE_RECORD, "group": ""}
+        result = format_records([old_record, new_record], 1)
+        assert len(result) == 1
+        assert "共 1 条最佳记录" in result[0]
+        assert "H11-1" in result[0]
+
+    def test_blank_line_between_records(self):
+        """多条记录之间有空行分隔"""
+        result = format_records([SAMPLE_RECORD, SAMPLE_RECORD], 2)
+        full = result[0]
+        # 检查两条记录之间有空行（\n\n 分隔）
+        assert "\n\n" in full
+
+    def test_single_record_no_trailing_blank_line(self):
+        """单条记录末尾没有多余空行"""
+        result = format_records([SAMPLE_RECORD], 1)
+        assert not result[0].endswith("\n\n")

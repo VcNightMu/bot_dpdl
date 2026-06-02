@@ -42,6 +42,7 @@ def _format_date(date_str: str) -> str:
             continue
     return date_str
 
+
 # QQ单条消息建议上限（保守值）
 MAX_MSG_LENGTH = 800
 
@@ -91,8 +92,9 @@ def format_single_record(record: dict[str, Any], index: int | None = None) -> st
 
     # 第一行：📋 关卡代号 中文名（突袭/普通）
     line1 = f"📋 {operation} {cn_name}（{op_type}）"
-    # 第二行：🏷️ 流派 | 👤 玩家名
-    line2 = f"🏷️ {cat_str} | 👤 {raider}"
+    # 第二行：🏷️ 流派 | 👤 玩家名 | 👥 N人
+    team_count = len(team)
+    line2 = f"🏷️ {cat_str} | 👤 {raider} | 👥 {team_count}人"
     # 第三行：👥 干员列表
     line3 = f"👥 {_format_operator_list(team)}"
     # 第四行：📅 日期 | 🔗 BV号
@@ -112,29 +114,33 @@ def format_single_record(record: dict[str, Any], index: int | None = None) -> st
 def format_records(records: list[dict[str, Any]], count_valid: int) -> list[str]:
     """格式化查询结果，返回消息列表（可能多条）
 
-    records: 最佳记录列表
-    count_valid: 最佳记录总数
+    records: API 返回的完整记录列表（含旧纪录）
+    count_valid: API 返回的不含旧纪录的数量，可直接使用
     """
+    # Feature 1: 按 group 字段过滤旧记录
+    records = [r for r in records if r.get("group", "") != "旧纪录"]
+
     if not records:
         return ["没有找到最佳记录 😅"]
 
     messages: list[str] = []
 
-    if len(records) == 1:
-        header = ""
-        body = format_single_record(records[0])
-        messages.append(header + body)
-    else:
-        header = f"找到最佳记录 {count_valid} 条\n\n"
-        current_msg = header
-        for i, record in enumerate(records):
-            text = format_single_record(record, i + 1)
-            if len(current_msg) + len(text) > MAX_MSG_LENGTH:
-                messages.append(current_msg)
-                current_msg = text
-            else:
-                current_msg += text
-        if current_msg:
+    # Feature 2: 单条也显示记录人数
+    header = f"共 {count_valid} 条最佳记录\n\n" if count_valid == 1 else f"找到最佳记录 {count_valid} 条\n\n"
+    current_msg = header
+
+    # Feature 3: 多条记录间插入空行
+    for i, record in enumerate(records):
+        text = format_single_record(record, i + 1 if count_valid > 1 else None)
+        if i > 0:
+            # 记录之间插入空行（不计为额外开销，用 \n\n 分隔）
+            current_msg += "\n"
+        if len(current_msg) + len(text) > MAX_MSG_LENGTH:
             messages.append(current_msg)
+            current_msg = text
+        else:
+            current_msg += text
+    if current_msg:
+        messages.append(current_msg)
 
     return messages
