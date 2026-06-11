@@ -34,7 +34,12 @@ def format_operation_info(
         from resolver.category import CATEGORIES
         valid_cats = set(CATEGORIES)
         items = [(k, v) for k, v in info.categories.items() if k in valid_cats]
-        items.sort(key=lambda x: x[1].normal.num if x[1].normal.num > 0 else 999)
+        # 双关键字排序：普通人数升序，普通相同则突袭人数升序（0视为最大）
+        def sort_key(x: tuple) -> tuple[int, int]:
+            n = x[1].normal.num
+            c = x[1].challenge.num
+            return (n if n > 0 else 999, c if c > 0 else 999)
+        items.sort(key=sort_key)
 
     if not items:
         return f"{header}\n\n没有找到流派数据 😅"
