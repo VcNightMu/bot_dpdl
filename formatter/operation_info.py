@@ -1,6 +1,6 @@
 # 日期: 2026-06-11
 # 开发者: 橘雪莉
-# 功能: #人数指令格式化模块，展示关卡各流派人数统计（表格格式）
+# 功能: #人数指令格式化模块，展示关卡各流派人数统计
 # 模型: mimo/mimo-v2.5
 
 """#人数 格式化模块
@@ -54,65 +54,36 @@ def format_operation_info(
 
 def _format_with_challenge(header: str, items: list) -> str:
     """有突袭的关卡：显示普通+突袭两列"""
-    # 先计算所有行，用于确定列宽
-    rows = []
+    lines = [header, ""]
+
+    # 计算流派名称最大宽度
+    max_name_width = max(_display_width(name) for name, _ in items) if items else 0
+
     for cat_name, stats in items:
         n = stats.normal.num
         c = stats.challenge.num
-        rows.append((cat_name, n, c))
 
-    # 流派名称最大显示宽度（中文字符占2）
-    name_width = max(_display_width(name) for name, _, _ in rows) if rows else 0
-    name_width = max(name_width, 6)  # 至少 "流派名称" 的宽度
-
-    # 数字列宽度
-    num_width = 4
-
-    lines = [header, ""]
-
-    # 表头
-    name_header = "流派名称".ljust(name_width + 2)
-    lines.append(f"{name_header}普通  突袭")
-
-    # 分隔线
-    lines.append("─" * (name_width + 2 + num_width * 2 + 2))
-
-    # 数据行
-    for name, n, c in rows:
         n_str = str(n) if n > 0 else "-"
         c_str = str(c) if c > 0 else "-"
 
-        # 流派名称左对齐，数字右对齐
-        name_padded = _pad_cn_right(name, name_width + 2)
-        n_padded = n_str.rjust(num_width)
-        c_padded = c_str.rjust(num_width)
-
-        lines.append(f"{name_padded}{n_padded}  {c_padded}")
+        # 流派名左对齐，数字用固定间距
+        name_padded = _pad_cn_right(cat_name, max_name_width)
+        lines.append(f"{name_padded}  普通{n_str}  突袭{c_str}")
 
     return "\n".join(lines)
 
 
 def _format_without_challenge(header: str, items: list) -> str:
     """无突袭的关卡：只显示一列"""
-    rows = []
-    for cat_name, stats in items:
-        n = stats.normal.num
-        rows.append((cat_name, n))
-
-    name_width = max(_display_width(name) for name, _ in rows) if rows else 0
-    name_width = max(name_width, 6)
-
     lines = [header, ""]
 
-    name_header = "流派名称".ljust(name_width + 2)
-    lines.append(f"{name_header}最少人数")
-    lines.append("─" * (name_width + 2 + 6))
+    max_name_width = max(_display_width(name) for name, _ in items) if items else 0
 
-    for name, n in rows:
+    for cat_name, stats in items:
+        n = stats.normal.num
         n_str = str(n) if n > 0 else "-"
-        name_padded = _pad_cn_right(name, name_width + 2)
-        n_padded = n_str.rjust(4)
-        lines.append(f"{name_padded}{n_padded}")
+        name_padded = _pad_cn_right(cat_name, max_name_width)
+        lines.append(f"{name_padded}  {n_str}人")
 
     return "\n".join(lines)
 
