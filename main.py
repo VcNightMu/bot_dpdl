@@ -17,6 +17,7 @@ from qq_bot.handler import CommandHandler
 from qq_bot.onebot import OneBotAdapter
 from api_client import WikiClient
 from resolver.operation import build_operation_index
+from resolver.episode_short import init_episode_short_map
 
 # 配置日志
 logging.basicConfig(
@@ -85,6 +86,10 @@ async def lifespan(app: FastAPI):
             menu_dicts.append(story_dict)
         operation_index = build_operation_index(menu_dicts)
         logger.info(f"关卡索引构建完成: {len(operation_index.get('by_operation', {}))} 个关卡")
+        
+        # 初始化活动缩写映射
+        init_episode_short_map(operation_index)
+        logger.info("活动缩写映射初始化完成")
     except Exception as e:
         logger.error(f"构建关卡索引失败: {e}")
         operation_index = None

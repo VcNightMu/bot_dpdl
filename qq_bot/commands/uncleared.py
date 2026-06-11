@@ -1,6 +1,6 @@
 # 日期: 2026-06-01
 # 开发者: 橘雪莉
-# 功能: #未通关指令 - 按活动名和流派查询未通关关卡
+# 功能: #未通关指令 - 按活动名和流派查询未通关关卡，支持缩写查询
 # 模型: mimo/mimo-v2.5
 
 """#未通关 指令 - 查未通关关卡
@@ -13,6 +13,7 @@ import re
 
 from api_client import WikiClient
 from resolver.category import normalize_category
+from resolver.episode_short import resolve_episode_short, format_episode_choices
 from formatter.uncleared import format_uncleared
 from config import config
 
@@ -65,6 +66,7 @@ async def handle_uncleared(match: re.Match, group_id: int, user_id: int, operati
     处理 #未通关 指令
     格式: #未通关 <活动名> <流派>
     示例: #未通关 惊霆无声 四星队
+    支持缩写查询: #未通关 SV 四星队
     """
     args = match.group(1).strip()
     
@@ -76,13 +78,25 @@ async def handle_uncleared(match: re.Match, group_id: int, user_id: int, operati
             "发送 #流派 查看所有流派"
         )
     
-    episode = parts[0]
+    episode_input = parts[0]
     category_input = parts[1]
     
     # 归一流派名
     category = normalize_category(category_input)
     if not category:
         return f"未找到流派 \"{category_input}\"，发送 #流派 查看所有流派"
+    
+    # 尝试缩写解析
+    short_result = resolve_episode_short(episode_input)
+    if short_result:
+        _, names = short_result
+        if len(names) > 1:
+            # 缩写对应多个活动，提示用户选择
+            return format_episode_choices(names, "#未通关")
+        episode = names[0]
+    else:
+        # 不是缩写，直接使用输入的活动名
+        episode = episode_input
     
     logger.info(f"#未通关指令: episode={episode}, category={category}")
     
