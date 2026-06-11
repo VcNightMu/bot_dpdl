@@ -6,13 +6,6 @@
 """#人数 格式化模块
 
 展示关卡各流派人数统计。
-
-格式：
-📊 关卡代号 中文名
-
-流派名称 | 普通 | 突袭
-精二1级     1    1
-精一满级    2    2
 """
 from __future__ import annotations
 
@@ -29,7 +22,6 @@ def format_operation_info(
         info: API 返回的关卡统计信息
         filter_categories: 要展示的流派列表，None 则展示全部
     """
-    # 标题行
     header = f"📊 {info.operation} {info.cn_name}"
 
     # 筛选要展示的流派
@@ -39,17 +31,9 @@ def format_operation_info(
             if cat in info.categories:
                 items.append((cat, info.categories[cat]))
     else:
-        # 只展示内置流派（CATEGORIES），按最少人数升序排列
-        from resolver.category import CATEGORIES, CATEGORY_ALIASES
-        # 构建标准名集合（包含别名映射到的标准名）
+        from resolver.category import CATEGORIES
         valid_cats = set(CATEGORIES)
-        
-        items = []
-        for cat_name, stats in info.categories.items():
-            if cat_name in valid_cats:
-                items.append((cat_name, stats))
-        
-        # 按普通最少人数升序排列
+        items = [(k, v) for k, v in info.categories.items() if k in valid_cats]
         items.sort(key=lambda x: x[1].normal.num if x[1].normal.num > 0 else 999)
 
     if not items:
@@ -57,41 +41,90 @@ def format_operation_info(
 
     has_challenge = info.has_challenge
 
-    # 构建表格
     if has_challenge:
-        # 有突袭：显示普通+突袭两列
-        lines = [header, "", "流派名称         最少人数"]
-        for cat_name, stats in items:
-            normal_num = stats.normal.num
-            challenge_num = stats.challenge.num
-            normal_str = str(normal_num) if normal_num > 0 else "-"
-            challenge_str = str(challenge_num) if challenge_num > 0 else "-"
-            name_display = _pad_cn(cat_name, 14)
-            lines.append(f"{name_display}普通{normal_str}  突袭{challenge_str}")
+        return _format_with_challenge(header, items)
     else:
-        # 无突袭：只显示普通列
-        lines = [header, "", "流派名称         最少人数"]
-        for cat_name, stats in items:
-            normal_num = stats.normal.num
-            normal_str = str(normal_num) if normal_num > 0 else "-"
-            name_display = _pad_cn(cat_name, 14)
-            lines.append(f"{name_display}{normal_str}")
+        return _format_without_challenge(header, items)
+
+
+def _format_with_challenge(header: str, items: list) -> str:
+    """有突袭的关卡：显示普通+突袭两列"""
+    # 先计算所有行，用于确定列宽
+    rows = []
+    for cat_name, stats in items:
+        n = stats.normal.num
+        c = stats.challenge.num
+        rows.append((cat_name, n, c))
+
+    # 流派名称最大显示宽度（中文字符占2）
+    name_width = max(_display_width(name) for name, _, _ in rows) if rows else 0
+    name_width = max(name_width, 6)  # 至少 "流派名称" 的宽度
+
+    # 数字列宽度
+    num_width = 4
+
+    lines = [header, ""]
+
+    # 表头
+    name_header = "流派名称".ljust(name_width + 2)
+    lines.append(f"{name_header}普通  突袭")
+
+    # 分隔线
+    lines.append("─" * (name_width + 2 + num_width * 2 + 2))
+
+    # 数据行
+    for name, n, c in rows:
+        n_str = str(n) if n > 0 else "-"
+        c_str = str(c) if c > 0 else "-"
+
+        # 流派名称左对齐，数字右对齐
+        name_padded = _pad_cn_right(name, name_width + 2)
+        n_padded = n_str.rjust(num_width)
+        c_padded = c_str.rjust(num_width)
+
+        lines.append(f"{name_padded}{n_padded}  {c_padded}")
 
     return "\n".join(lines)
 
 
-def _pad_cn(text: str, width: int) -> str:
-    """中文对齐填充，中文字符占2个宽度"""
-    result = ""
-    current_width = 0
+def _format_without_challenge(header: str, items: list) -> str:
+    """无突袭的关卡：只显示一列"""
+    rows = []
+    for cat_name, stats in items:
+        n = stats.normal.num
+        rows.append((cat_name, n))
+
+    name_width = max(_display_width(name) for name, _ in rows) if rows else 0
+    name_width = max(name_width, 6)
+
+    lines = [header, ""]
+
+    name_header = "流派名称".ljust(name_width + 2)
+    lines.append(f"{name_header}最少人数")
+    lines.append("─" * (name_width + 2 + 6))
+
+    for name, n in rows:
+        n_str = str(n) if n > 0 else "-"
+        name_padded = _pad_cn_right(name, name_width + 2)
+        n_padded = n_str.rjust(4)
+        lines.append(f"{name_padded}{n_padded}")
+
+    return "\n".join(lines)
+
+
+def _display_width(text: str) -> int:
+    """计算字符串显示宽度（中文占2）"""
+    width = 0
     for ch in text:
         if '\u4e00' <= ch <= '\u9fff' or '\u3000' <= ch <= '\u303f' or '\uff00' <= ch <= '\uffef':
-            current_width += 2
+            width += 2
         else:
-            current_width += 1
-        result += ch
-    # 补齐空格
-    while current_width < width:
-        result += " "
-        current_width += 1
-    return result
+            width += 1
+    return width
+
+
+def _pad_cn_right(text: str, target_width: int) -> str:
+    """中文右填充到指定宽度"""
+    current = _display_width(text)
+    padding = target_width - current
+    return text + " " * max(0, padding)
