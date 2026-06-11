@@ -148,3 +148,61 @@ class MenuStory:
             story=data.get("story", ""),
             episodes=episodes,
         )
+
+
+@dataclass
+class CategoryStats:
+    """单个流派的统计数据"""
+    count: int = 0       # 记录数
+    num: int = 0         # 最少人数
+    exclusive: list[str] = field(default_factory=list)  # 独占干员
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> CategoryStats:
+        return cls(
+            count=data.get("count", 0),
+            num=data.get("num", 0),
+            exclusive=data.get("exclusive", []),
+        )
+
+
+@dataclass
+class CategoryDifficultyStats:
+    """单个流派×难度的统计数据"""
+    normal: CategoryStats = field(default_factory=CategoryStats)
+    challenge: CategoryStats = field(default_factory=CategoryStats)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> CategoryDifficultyStats:
+        return cls(
+            normal=CategoryStats.from_dict(data.get("normal", {})),
+            challenge=CategoryStats.from_dict(data.get("challenge", {})),
+        )
+
+
+@dataclass
+class OperationInfoEntry:
+    """关卡人数统计信息（POST /bot/operation-info-entry 响应）"""
+    story: str = ""
+    episode: str = ""
+    operation: str = ""
+    cn_name: str = ""
+    has_challenge: bool = False
+    categories: dict[str, CategoryDifficultyStats] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> OperationInfoEntry:
+        # 前5个字段是固定的
+        known_keys = {"story", "episode", "operation", "cn_name", "hasChallenge"}
+        categories = {}
+        for key, value in data.items():
+            if key not in known_keys and isinstance(value, dict):
+                categories[key] = CategoryDifficultyStats.from_dict(value)
+        return cls(
+            story=data.get("story", ""),
+            episode=data.get("episode", ""),
+            operation=data.get("operation", ""),
+            cn_name=data.get("cn_name", ""),
+            has_challenge=data.get("hasChallenge", False),
+            categories=categories,
+        )

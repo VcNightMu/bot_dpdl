@@ -11,6 +11,7 @@ from dataclasses import asdict
 from api_client import WikiClient
 from resolver.operation import normalize_operation
 from resolver.category import normalize_category
+from resolver.duplicate import check_duplicate_operation
 from formatter.record import format_records
 from config import config
 
@@ -40,6 +41,11 @@ async def handle_query(match: re.Match, group_id: int, user_id: int, operation_i
     category = normalize_category(category_input)
     if not category:
         return f"未找到流派 \"{category_input}\"，发送 #流派 查看所有流派"
+    
+    # 检测重复关卡代号
+    dup_msg = check_duplicate_operation(operation_input, operation_index)
+    if dup_msg:
+        return dup_msg
     
     # 归一化关卡代号
     operation = normalize_operation(operation_input)

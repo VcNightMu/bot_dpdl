@@ -29,6 +29,7 @@ from tenacity import (
 from .models import (
     BotRecord,
     MenuStory,
+    OperationInfoEntry,
     QueryResult,
     StaleResult,
     UnclearedResult,
@@ -312,3 +313,18 @@ class WikiClient:
         """
         data = await self._get("/menu")
         return [MenuStory.from_dict(s) for s in data]
+
+    async def operation_info_entry(
+        self,
+        *,
+        operation: str,
+        cn_name: str,
+    ) -> OperationInfoEntry:
+        """查询关卡各流派人数统计。
+
+        对应 POST /bot/operation-info-entry。
+        需要同时传入 operation 和 cn_name。
+        """
+        payload = {"operation": operation, "cn_name": cn_name}
+        data = await self._post("/operation-info-entry", payload)
+        return OperationInfoEntry.from_dict(data)

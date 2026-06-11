@@ -84,12 +84,18 @@ def normalize_operation(raw: str) -> str:
 def build_operation_index(menu_data: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """从 menu 树构建关卡索引
 
-    返回两个字典：
+    返回三个字典：
     - by_operation: { "M8-8": { cn_name, episode, story, has_challenge }, ... }
     - by_cn_name:   { "破碎日冕": { operation, episode, story, has_challenge }, ... }
+    - duplicates:   { "SV-5": [info1, info2], ... }（不同活动下同代号的关卡）
     """
     by_operation: dict[str, dict[str, Any]] = {}
     by_cn_name: dict[str, dict[str, Any]] = {}
+    duplicates: dict[str, list[dict[str, Any]]] = {}  # 跨活动重复代号收集
+    
+    # 临时收集：同一活动下的同代号不视为重复
+    # key: (operation_upper, episode) -> info
+    op_episode_map: dict[tuple[str, str], dict[str, Any]] = {}
 
     for story_node in menu_data:
         story = story_node.get("story", "")
@@ -108,14 +114,25 @@ def build_operation_index(menu_data: list[dict[str, Any]]) -> dict[str, dict[str
                     "has_challenge": has_challenge,
                 }
 
-                # 代号索引（key 为大写）
-                by_operation[operation.upper()] = info
+                key = operation.upper()
+                pair_key = (key, episode)
+
+                # 代号索引（key 为大写）— 检测跨活动重复
+                if key in by_operation:
+                    prev = by_operation[key]
+                    # 只有不同活动的同代号才算重复
+                    if prev["episode"] != episode:
+                        if key not in duplicates:
+                            duplicates[key] = [prev]
+                        duplicates[key].append(info)
+                else:
+                    by_operation[key] = info
 
                 # 中文名索引
                 if cn_name:
                     by_cn_name[cn_name] = info
 
-    return {"by_operation": by_operation, "by_cn_name": by_cn_name}
+    return {"by_operation": by_operation, "by_cn_name": by_cn_name, "duplicates": duplicates}
 
 
 def resolve_operation(

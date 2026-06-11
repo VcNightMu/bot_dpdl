@@ -10,6 +10,7 @@ class TestFormatHelp:
     def test_contains_all_commands(self):
         result = format_help()
         assert "#查" in result
+        assert "#人数" in result
         assert "#未通关" in result
         assert "#待压人" in result
         assert "#流派" in result
