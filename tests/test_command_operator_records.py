@@ -56,6 +56,24 @@ class TestHandleOperatorRecords:
             assert "未找到流派" in result
 
     @pytest.mark.asyncio
+    async def test_operator_is_category_name_returns_hint(self):
+        """干员名误填成流派名（参数写反）时提示"""
+        match = make_match("#干员记录 精一1级四星队 114")
+        result = await handle_operator_records(match, group_id=1, user_id=1)
+        assert isinstance(result, str)
+        assert "是流派名" in result
+        assert "不是干员" in result
+
+    @pytest.mark.asyncio
+    async def test_operator_is_category_alias_returns_hint(self):
+        """干员名误填成流派别名（如 114）时提示"""
+        match = make_match("#干员记录 114 无精英满级")
+        result = await handle_operator_records(match, group_id=1, user_id=1)
+        assert isinstance(result, str)
+        assert "是流派名" in result
+        assert "不是干员" in result
+
+    @pytest.mark.asyncio
     async def test_alias_normalized(self):
         """固定低星流派别名被归一化（无精英 → 无精英满级）"""
         match = make_match("#干员记录 羽毛笔 无精英")

@@ -13,7 +13,7 @@ import re
 
 from api_client import WikiAPIValidationError, WikiClient
 from config import config
-from resolver.category import normalize_category
+from resolver.category import CATEGORIES, CATEGORY_ALIASES, normalize_category
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,15 @@ async def handle_operator_records(
     # 最后一个词是流派，其余是干员名（兼容带空格的英文名如 "La Pluma"）
     category_input = parts[-1]
     operator_input = " ".join(parts[:-1])
+
+    # 干员名误填成了流派名/别名（参数写反）时给出友好提示
+    operator_stripped = operator_input.strip()
+    if operator_stripped in CATEGORIES or operator_stripped in CATEGORY_ALIASES:
+        return (
+            f"「{operator_input}」是流派名，不是干员哦～\n"
+            f"格式：#干员记录 <干员> <流派>\n"
+            f"示例：#干员记录 羽毛笔 无精英满级"
+        )
 
     category = normalize_category(category_input)
     if not category:
