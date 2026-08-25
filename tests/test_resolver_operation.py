@@ -112,6 +112,81 @@ class TestBuildOperationIndex:
         idx = build_operation_index(self.SAMPLE_MENU)
         assert idx["by_operation"]["H11-2"]["has_challenge"] is False
 
+    def test_operation_duplicate_same_episode(self):
+        """同活动内同代号多关卡（剿灭地区名场景）也要检测重复"""
+        menu = [
+            {
+                "story": "剿灭作战",
+                "episodes": [
+                    {
+                        "episode": "轮换委托",
+                        "operations": [
+                            {"operation": "炎国", "cn_name": "盘桓蜀道", "hasChallenge": False},
+                            {"operation": "炎国", "cn_name": "龙门商业街", "hasChallenge": False},
+                        ],
+                    }
+                ],
+            }
+        ]
+        idx = build_operation_index(menu)
+        assert "炎国" in idx["duplicates"]
+        assert len(idx["duplicates"]["炎国"]) == 2
+
+    def test_operation_duplicate_cross_episode(self):
+        """跨活动同代号（SV 系列）检测重复"""
+        menu = [
+            {
+                "story": "活动关卡",
+                "episodes": [
+                    {
+                        "episode": "乌萨斯的孩子们",
+                        "operations": [
+                            {"operation": "SV-5", "cn_name": "突破口", "hasChallenge": False},
+                        ],
+                    },
+                    {
+                        "episode": "覆潮之下",
+                        "operations": [
+                            {"operation": "SV-5", "cn_name": "遭弃者", "hasChallenge": False},
+                        ],
+                    },
+                ],
+            }
+        ]
+        idx = build_operation_index(menu)
+        assert "SV-5" in idx["duplicates"]
+        assert len(idx["duplicates"]["SV-5"]) == 2
+
+    def test_cn_name_duplicate(self):
+        """同一中文名对应多个关卡时检测重复"""
+        menu = [
+            {
+                "story": "活动关卡",
+                "episodes": [
+                    {
+                        "episode": "洪炉示岁",
+                        "operations": [
+                            {"operation": "AF-4", "cn_name": "故友重逢", "hasChallenge": False},
+                        ],
+                    },
+                    {
+                        "episode": "多索雷斯假日",
+                        "operations": [
+                            {"operation": "DH-S-3", "cn_name": "故友重逢", "hasChallenge": False},
+                        ],
+                    },
+                ],
+            }
+        ]
+        idx = build_operation_index(menu)
+        assert "故友重逢" in idx["cn_name_duplicates"]
+        assert len(idx["cn_name_duplicates"]["故友重逢"]) == 2
+
+    def test_cn_name_unique_not_in_duplicates(self):
+        """唯一中文名不进入重复表"""
+        idx = build_operation_index(self.SAMPLE_MENU)
+        assert "惊霆行动-1" not in idx.get("cn_name_duplicates", {})
+
 
 class TestResolveOperation:
     """resolve_operation 精确匹配测试"""

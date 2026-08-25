@@ -13,6 +13,7 @@ import re
 
 from api_client import WikiClient
 from resolver.category import normalize_category
+from resolver.episode import resolve_aggregate_episodes
 from resolver.episode_short import resolve_episode_short, format_episode_choices
 from formatter.uncleared import format_uncleared
 from config import config
@@ -85,6 +86,31 @@ async def handle_uncleared(match: re.Match, group_id: int, user_id: int, operati
     category = normalize_category(category_input)
     if not category:
         return f"未找到流派 \"{category_input}\"，发送 #流派 查看所有流派"
+    
+    # 尝试聚合活动解析（如"剿灭"→多个episode）
+    agg_episodes = resolve_aggregate_episodes(episode_input)
+    if agg_episodes:
+        logger.info(f"#未通关指令(聚合): episodes={agg_episodes}, category={category}")
+        try:
+            async with WikiClient(base_url=config.wiki_base_url, token=config.wiki_api_token) as client:
+                all_uncleared = []
+                seen: set[tuple] = set()
+                for ep in agg_episodes:
+                    result = await client.uncleared(episode=ep, category=category)
+                    for item in result.uncleared:
+                        key = (
+                            item.get("operation", "").upper(),
+                            item.get("cn_name", "").strip(),
+                            item.get("difficulty", "normal"),
+                        )
+                        if key not in seen:
+                            seen.add(key)
+                            all_uncleared.append(item)
+                uncleared = filter_uncleared(all_uncleared, operation_index)
+                return format_uncleared(episode_input, category, uncleared, operation_index)
+        except Exception as e:
+            logger.error(f"查询未通关关卡失败: {e}", exc_info=True)
+            return "查询失败，请稍后重试"
     
     # 尝试缩写解析
     short_result = resolve_episode_short(episode_input)

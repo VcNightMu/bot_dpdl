@@ -127,6 +127,58 @@ class TestHandleUncleared:
             call_args = mock_fmt.call_args
             assert call_args[0][3] is test_index
 
+    @pytest.mark.asyncio
+    async def test_aggregate_annihilation_query(self):
+        """聚合查询：剿灭 → 分别查长期委托+轮换委托并合并"""
+        match = make_match("#未通关 剿灭 四星队")
+        mock_result_1 = MockUnclearedResult(episode="长期委托", uncleared=[
+            {"operation": "乌萨斯", "cn_name": "切尔诺伯格", "difficulty": "normal"}
+        ])
+        mock_result_2 = MockUnclearedResult(episode="轮换委托", uncleared=[
+            {"operation": "玻利瓦尔", "cn_name": "多索雷斯换水口", "difficulty": "normal"}
+        ])
+
+        with patch("qq_bot.commands.uncleared.normalize_category", return_value="四星队"), \
+             patch("qq_bot.commands.uncleared.WikiClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.uncleared = AsyncMock(side_effect=[mock_result_1, mock_result_2])
+            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_instance
+
+            result = await handle_uncleared(match, group_id=1, user_id=1)
+
+            assert mock_instance.uncleared.call_count == 2
+            assert "切尔诺伯格" in result
+            assert "多索雷斯换水口" in result
+
+    @pytest.mark.asyncio
+    async def test_aggregate_dedup(self):
+        """聚合查询去重：跨episode重复的关卡只保留一次"""
+        match = make_match("#未通关 剿灭 四星队")
+        mock_result_1 = MockUnclearedResult(uncleared=[
+            {"operation": "乌萨斯", "cn_name": "切尔诺伯格", "difficulty": "normal"}
+        ])
+        mock_result_2 = MockUnclearedResult(uncleared=[
+            {"operation": "乌萨斯", "cn_name": "切尔诺伯格", "difficulty": "normal"},
+            {"operation": "玻利瓦尔", "cn_name": "多索雷斯换水口", "difficulty": "normal"}
+        ])
+
+        with patch("qq_bot.commands.uncleared.normalize_category", return_value="四星队"), \
+             patch("qq_bot.commands.uncleared.WikiClient") as MockClient, \
+             patch("qq_bot.commands.uncleared.format_uncleared") as mock_fmt:
+            mock_instance = AsyncMock()
+            mock_instance.uncleared = AsyncMock(side_effect=[mock_result_1, mock_result_2])
+            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_instance
+            mock_fmt.return_value = "formatted"
+
+            await handle_uncleared(match, group_id=1, user_id=1)
+
+            uncleared_arg = mock_fmt.call_args[0][2]
+            assert len(uncleared_arg) == 2
+
 
 class TestFilterUncleared:
     """测试 filter_uncleared - 突袭等效普通过滤"""

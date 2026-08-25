@@ -9,7 +9,7 @@ import re
 from dataclasses import asdict
 
 from api_client import WikiClient
-from resolver.operation import normalize_operation
+from resolver.operation import normalize_operation, resolve_operation
 from resolver.category import normalize_category
 from resolver.duplicate import check_duplicate_operation
 from formatter.record import format_records
@@ -23,6 +23,7 @@ async def handle_query(match: re.Match, group_id: int, user_id: int, operation_i
     处理 #查 指令
     格式: #查 <关卡> <流派>
     示例: #查 H11-1 四星队
+          #查 多索雷斯换水口 四星队（剿灭关卡直接输中文名）
     """
     args = match.group(1).strip()
     
@@ -47,15 +48,26 @@ async def handle_query(match: re.Match, group_id: int, user_id: int, operation_i
     if dup_msg:
         return dup_msg
     
-    # 归一化关卡代号
-    operation = normalize_operation(operation_input)
+    # 解析关卡：优先精确匹配（支持代号 和 中文名，含剿灭地区+关卡名）
+    operation: str | None = None
+    cn_name: str | None = None
+    if operation_index:
+        resolved = resolve_operation(operation_input, operation_index)
+        if resolved:
+            info, _match_type = resolved
+            operation = info.get("operation", "")
+            cn_name = info.get("cn_name", "")
     
-    logger.info(f"#查指令: operation={operation}, category={category}")
+    # 未命中索引时，退回归一化代号
+    if operation is None:
+        operation = normalize_operation(operation_input)
+    
+    logger.info(f"#查指令: operation={operation}, cn_name={cn_name}, category={category}")
     
     try:
         # 调用wiki API查询记录
         async with WikiClient(base_url=config.wiki_base_url, token=config.wiki_api_token) as client:
-            result = await client.query_records(operation=operation, category=category)
+            result = await client.query_records(operation=operation, cn_name=cn_name, category=category)
             
             # 格式化返回结果（BotRecord dataclass → dict）
             records_dict = [asdict(r) for r in result.records]

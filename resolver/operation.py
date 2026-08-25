@@ -81,21 +81,33 @@ def normalize_operation(raw: str) -> str:
     return "".join(result)
 
 
+def _dedup_infos(infos: list[dict[str, Any]], key_fn) -> list[dict[str, Any]]:
+    """按 key_fn 提取的唯一标识去重（保持出现顺序）"""
+    seen: set = set()
+    result: list[dict[str, Any]] = []
+    for info in infos:
+        k = key_fn(info)
+        if k not in seen:
+            seen.add(k)
+            result.append(info)
+    return result
+
+
 def build_operation_index(menu_data: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """从 menu 树构建关卡索引
 
-    返回三个字典：
-    - by_operation: { "M8-8": { cn_name, episode, story, has_challenge }, ... }
-    - by_cn_name:   { "破碎日冕": { operation, episode, story, has_challenge }, ... }
-    - duplicates:   { "SV-5": [info1, info2], ... }（不同活动下同代号的关卡）
+    返回四个字典：
+    - by_operation:       { "M8-8": { cn_name, episode, story, has_challenge }, ... }
+    - by_cn_name:         { "破碎日冕": { operation, episode, story, has_challenge }, ... }
+    - duplicates:         { "SV-5": [info1, info2], ... }（同一代号对应多个不同关卡）
+    - cn_name_duplicates: { "故友重逢": [info1, info2], ... }（同一中文名对应多个不同关卡）
+
+    重复判定不区分是否同活动：只要同一代号/中文名对应多个不同关卡即视为多义，
+    统一交由上层提示用户选择（覆盖剿灭作战"地区名"同活动多关卡、危机合约"同图多期"等场景）。
     """
-    by_operation: dict[str, dict[str, Any]] = {}
-    by_cn_name: dict[str, dict[str, Any]] = {}
-    duplicates: dict[str, list[dict[str, Any]]] = {}  # 跨活动重复代号收集
-    
-    # 临时收集：同一活动下的同代号不视为重复
-    # key: (operation_upper, episode) -> info
-    op_episode_map: dict[tuple[str, str], dict[str, Any]] = {}
+    # 收集阶段：按代号 / 中文名分组
+    op_groups: dict[str, list[dict[str, Any]]] = {}
+    cn_groups: dict[str, list[dict[str, Any]]] = {}
 
     for story_node in menu_data:
         story = story_node.get("story", "")
@@ -115,24 +127,33 @@ def build_operation_index(menu_data: list[dict[str, Any]]) -> dict[str, dict[str
                 }
 
                 key = operation.upper()
-                pair_key = (key, episode)
-
-                # 代号索引（key 为大写）— 检测跨活动重复
-                if key in by_operation:
-                    prev = by_operation[key]
-                    # 只有不同活动的同代号才算重复
-                    if prev["episode"] != episode:
-                        if key not in duplicates:
-                            duplicates[key] = [prev]
-                        duplicates[key].append(info)
-                else:
-                    by_operation[key] = info
-
-                # 中文名索引
+                op_groups.setdefault(key, []).append(info)
                 if cn_name:
-                    by_cn_name[cn_name] = info
+                    cn_groups.setdefault(cn_name, []).append(info)
 
-    return {"by_operation": by_operation, "by_cn_name": by_cn_name, "duplicates": duplicates}
+    # 构建阶段：去重后区分单义 / 多义
+    by_operation: dict[str, dict[str, Any]] = {}
+    duplicates: dict[str, list[dict[str, Any]]] = {}
+    for key, infos in op_groups.items():
+        unique = _dedup_infos(infos, key_fn=lambda i: (i["cn_name"].strip(), i["episode"]))
+        by_operation[key] = unique[0]
+        if len(unique) > 1:
+            duplicates[key] = unique
+
+    by_cn_name: dict[str, dict[str, Any]] = {}
+    cn_name_duplicates: dict[str, list[dict[str, Any]]] = {}
+    for cn, infos in cn_groups.items():
+        unique = _dedup_infos(infos, key_fn=lambda i: (i["operation"].upper(), i["episode"]))
+        by_cn_name[cn] = unique[0]
+        if len(unique) > 1:
+            cn_name_duplicates[cn] = unique
+
+    return {
+        "by_operation": by_operation,
+        "by_cn_name": by_cn_name,
+        "duplicates": duplicates,
+        "cn_name_duplicates": cn_name_duplicates,
+    }
 
 
 def resolve_operation(

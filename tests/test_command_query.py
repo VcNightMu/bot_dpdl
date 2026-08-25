@@ -128,3 +128,71 @@ class TestHandleQuery:
         match = make_match("#查 H11-1")
         result = await handle_query(match, group_id=1, user_id=1)
         assert "缺少流派" in result or "流派" in result
+
+    @pytest.mark.asyncio
+    async def test_annihilation_cn_name_query(self):
+        """剿灭关卡中文名查询：解析出地区名+关卡名一起传"""
+        match = make_match("#查 多索雷斯换水口 四星队")
+        mock_result = MockQueryResult()
+        operation_index = {
+            "by_operation": {},
+            "by_cn_name": {
+                "多索雷斯换水口": {
+                    "operation": "玻利瓦尔",
+                    "cn_name": "多索雷斯换水口",
+                    "episode": "轮换委托",
+                    "story": "剿灭作战",
+                    "has_challenge": False,
+                }
+            },
+            "duplicates": {},
+        }
+
+        with patch("qq_bot.commands.query.normalize_category", return_value="四星队"), \
+             patch("qq_bot.commands.query.WikiClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.query_records = AsyncMock(return_value=mock_result)
+            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_instance
+
+            await handle_query(match, group_id=1, user_id=1, operation_index=operation_index)
+
+            call_kwargs = mock_instance.query_records.call_args.kwargs
+            assert call_kwargs["operation"] == "玻利瓦尔"
+            assert call_kwargs["cn_name"] == "多索雷斯换水口"
+            assert call_kwargs["category"] == "四星队"
+
+    @pytest.mark.asyncio
+    async def test_operation_code_query_with_index(self):
+        """代号查询（带索引）：解析出 operation + cn_name 一起传"""
+        match = make_match("#查 H11-1 四星队")
+        mock_result = MockQueryResult()
+        operation_index = {
+            "by_operation": {
+                "H11-1": {
+                    "operation": "H11-1",
+                    "cn_name": "尘霾行动-1",
+                    "episode": "淬火尘霾",
+                    "story": "主线关卡",
+                    "has_challenge": True,
+                }
+            },
+            "by_cn_name": {},
+            "duplicates": {},
+        }
+
+        with patch("qq_bot.commands.query.normalize_category", return_value="四星队"), \
+             patch("qq_bot.commands.query.WikiClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.query_records = AsyncMock(return_value=mock_result)
+            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_instance
+
+            await handle_query(match, group_id=1, user_id=1, operation_index=operation_index)
+
+            call_kwargs = mock_instance.query_records.call_args.kwargs
+            assert call_kwargs["operation"] == "H11-1"
+            assert call_kwargs["cn_name"] == "尘霾行动-1"
+            assert call_kwargs["category"] == "四星队"
