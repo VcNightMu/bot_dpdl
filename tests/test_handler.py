@@ -25,8 +25,8 @@ class TestCommandRegistration:
 
     def test_commands_registered(self, handler):
         """所有指令都已注册（含无参数分支）"""
-        # 6个有参数指令 + 4个无参数分支 = 10
-        assert len(handler.commands) == 10
+        # 7个有参数指令 + 5个无参数分支 = 12
+        assert len(handler.commands) == 12
 
     def test_patterns_are_compiled_regex(self, handler):
         """注册的模式都是已编译的正则"""
@@ -106,6 +106,13 @@ class TestHandle:
     async def test_operation_info_no_args(self, handler):
         """#人数 缺少参数时返回错误提示"""
         result = await handler.handle("#人数", group_id=1, user_id=1)
+        assert result is not None
+        assert "缺少参数" in result
+
+    @pytest.mark.asyncio
+    async def test_operator_records_no_args(self, handler):
+        """#干员记录 缺少参数时返回错误提示"""
+        result = await handler.handle("#干员记录", group_id=1, user_id=1)
         assert result is not None
         assert "缺少参数" in result
 

@@ -31,6 +31,7 @@ from .models import (
     MenuStory,
     OperationInfoEntry,
     QueryResult,
+    SearchResult,
     StaleResult,
     UnclearedResult,
 )
@@ -328,3 +329,18 @@ class WikiClient:
         payload = {"operation": operation, "cn_name": cn_name}
         data = await self._post("/operation-info-entry", payload)
         return OperationInfoEntry.from_dict(data)
+
+    async def search_records(
+        self,
+        *,
+        conditions: list[dict[str, Any]],
+        skip: int = 0,
+    ) -> SearchResult:
+        """多条件组合检索。
+
+        对应 POST /bot/search-records。
+        conditions 为 [{field, value}, ...]，1-8 条，同一 field 只能出现一次。
+        """
+        payload = {"conditions": conditions, "skip": skip}
+        data = await self._post("/search-records", payload)
+        return SearchResult.from_dict(data)

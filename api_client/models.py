@@ -71,6 +71,23 @@ class QueryResult:
 
 
 @dataclass
+class SearchResult:
+    """多条件检索结果（POST /bot/search-records 响应）"""
+    count: int = 0
+    count_valid: int = 0
+    records: list[BotRecord] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> SearchResult:
+        records = [BotRecord.from_dict(r) for r in data.get("records", [])]
+        return cls(
+            count=data.get("count", 0),
+            count_valid=data.get("countValid", data.get("count", 0)),
+            records=records,
+        )
+
+
+@dataclass
 class UnclearedResult:
     """未通关结果"""
     episode: str = ""

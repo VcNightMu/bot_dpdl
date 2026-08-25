@@ -23,6 +23,7 @@ from .models import (
     MenuOperation,
     MenuEpisode,
     QueryResult,
+    SearchResult,
     UnclearedResult,
     StaleResult,
 )
@@ -40,6 +41,7 @@ __all__ = [
     "MenuOperation",
     "MenuEpisode",
     "QueryResult",
+    "SearchResult",
     "UnclearedResult",
     "StaleResult",
 ]
