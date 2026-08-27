@@ -18,6 +18,7 @@ sys.path.insert(0, r"F:\ArkCodes\bot_dpdl")
 from api_client import WikiAPIValidationError
 from qq_bot.commands.operator_records import (
     _extract_friendly_message,
+    _parse_combo,
     handle_operator_records,
 )
 
@@ -266,3 +267,169 @@ class TestExtractFriendlyMessage:
         """JSON 但无 message 字段返回 None"""
         exc = WikiAPIValidationError('{"error":"validation","issues":[]}')
         assert _extract_friendly_message(exc) is None
+
+
+class TestParseCombo:
+    """_parse_combo 函数单元测试"""
+
+    def test_split_by_plus(self):
+        assert _parse_combo("羽毛笔+银灰") == ["羽毛笔", "银灰"]
+
+    def test_three_operators(self):
+        assert _parse_combo("羽毛笔+银灰+史尔特尔") == ["羽毛笔", "银灰", "史尔特尔"]
+
+    def test_strips_whitespace(self):
+        assert _parse_combo(" 羽毛笔 + 银灰 ") == ["羽毛笔", "银灰"]
+
+    def test_skips_empty_items(self):
+        assert _parse_combo("羽毛笔+") == ["羽毛笔"]
+        assert _parse_combo("+羽毛笔") == ["羽毛笔"]
+        assert _parse_combo("+") == []
+
+    def test_dedup_preserves_order(self):
+        assert _parse_combo("羽毛笔+银灰+羽毛笔") == ["羽毛笔", "银灰"]
+
+    def test_multiword_name_kept_intact(self):
+        assert _parse_combo("La Pluma+Texas the Omertosa") == ["La Pluma", "Texas the Omertosa"]
+
+
+class TestComboQuery:
+    """#干员记录 组合查询测试（组合查询限定在某个流派上）"""
+
+    def _mock_client(self, result=None, exc=None):
+        """构造 mock WikiClient 实例。"""
+        mock_instance = AsyncMock()
+        if exc is not None:
+            mock_instance.search_records = AsyncMock(side_effect=exc)
+        else:
+            mock_instance.search_records = AsyncMock(return_value=result)
+        mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+        mock_instance.__aexit__ = AsyncMock(return_value=False)
+        return mock_instance
+
+    @pytest.mark.asyncio
+    async def test_combo_conditions_passed_correctly(self):
+        """组合查询 conditions 为 team(多干员AND) + category 两条"""
+        match = make_match("#干员记录 羽毛笔+银灰 无精英满级")
+        mock_result = MockSearchResult(count=120, count_valid=120)
+
+        with patch(
+            "qq_bot.commands.operator_records.normalize_category",
+            return_value="无精英满级",
+        ), patch("qq_bot.commands.operator_records.WikiClient") as MockClient:
+            mock_instance = self._mock_client(result=mock_result)
+            MockClient.return_value = mock_instance
+
+            await handle_operator_records(match, group_id=1, user_id=1)
+
+            conditions = mock_instance.search_records.call_args.kwargs["conditions"]
+            assert len(conditions) == 2
+            assert conditions[0] == {
+                "field": "team",
+                "value": {
+                    "members": [
+                        {"operator": "羽毛笔"},
+                        {"operator": "银灰"},
+                    ],
+                },
+            }
+            assert conditions[1] == {"field": "category", "value": "无精英满级"}
+
+    @pytest.mark.asyncio
+    async def test_combo_shows_stats(self):
+        """组合查询回显三行统计（含流派）"""
+        match = make_match("#干员记录 羽毛笔+银灰 无精英满级")
+        mock_result = MockSearchResult(count=120, count_valid=120)
+
+        with patch(
+            "qq_bot.commands.operator_records.normalize_category",
+            return_value="无精英满级",
+        ), patch("qq_bot.commands.operator_records.WikiClient") as MockClient:
+            mock_instance = self._mock_client(result=mock_result)
+            MockClient.return_value = mock_instance
+
+            result = await handle_operator_records(match, group_id=1, user_id=1)
+            assert "羽毛笔+银灰" in result
+            assert "无精英满级" in result
+            assert "总记录：120 条" in result
+            assert "有效记录：120 条" in result
+            assert "旧纪录：0 条" in result
+
+    @pytest.mark.asyncio
+    async def test_combo_old_records(self):
+        """组合查询含旧纪录时旧纪录单独标注"""
+        match = make_match("#干员记录 羽毛笔+银灰 无精英满级")
+        mock_result = MockSearchResult(count=200, count_valid=120)
+
+        with patch(
+            "qq_bot.commands.operator_records.normalize_category",
+            return_value="无精英满级",
+        ), patch("qq_bot.commands.operator_records.WikiClient") as MockClient:
+            mock_instance = self._mock_client(result=mock_result)
+            MockClient.return_value = mock_instance
+
+            result = await handle_operator_records(match, group_id=1, user_id=1)
+            assert "旧纪录：80 条" in result
+
+    @pytest.mark.asyncio
+    async def test_combo_zero_records(self):
+        """组合查询无记录时返回提示"""
+        match = make_match("#干员记录 羽毛笔+银灰 无精英满级")
+        mock_result = MockSearchResult(count=0, count_valid=0)
+
+        with patch(
+            "qq_bot.commands.operator_records.normalize_category",
+            return_value="无精英满级",
+        ), patch("qq_bot.commands.operator_records.WikiClient") as MockClient:
+            mock_instance = self._mock_client(result=mock_result)
+            MockClient.return_value = mock_instance
+
+            result = await handle_operator_records(match, group_id=1, user_id=1)
+            assert "没有找到同时上场的记录" in result
+
+    @pytest.mark.asyncio
+    async def test_combo_missing_category_returns_hint(self):
+        """组合查询缺流派时提示"""
+        match = make_match("#干员记录 羽毛笔+银灰")
+        result = await handle_operator_records(match, group_id=1, user_id=1)
+        assert "流派" in result
+
+    @pytest.mark.asyncio
+    async def test_combo_single_after_dedup_returns_hint(self):
+        """去重后只剩一个干员时提示至少两个"""
+        match = make_match("#干员记录 羽毛笔+羽毛笔 无精英满级")
+        result = await handle_operator_records(match, group_id=1, user_id=1)
+        assert "至少需要两个干员" in result
+
+    @pytest.mark.asyncio
+    async def test_combo_empty_returns_hint(self):
+        """仅 + 号时提示至少两个"""
+        match = make_match("#干员记录 + 无精英满级")
+        result = await handle_operator_records(match, group_id=1, user_id=1)
+        assert "至少需要两个干员" in result
+
+    @pytest.mark.asyncio
+    async def test_combo_too_many_operators(self):
+        """超过 12 个干员时提示上限"""
+        ops = "+".join(f"干员{i}" for i in range(13))
+        match = make_match(f"#干员记录 {ops} 无精英满级")
+        result = await handle_operator_records(match, group_id=1, user_id=1)
+        assert "最多支持 12 个干员" in result
+
+    @pytest.mark.asyncio
+    async def test_combo_operator_not_found(self):
+        """组合中干员未识别时返回服务端友好提示"""
+        match = make_match("#干员记录 羽毛笔+不存在的干员XYZ 无精英满级")
+
+        with patch(
+            "qq_bot.commands.operator_records.normalize_category",
+            return_value="无精英满级",
+        ), patch("qq_bot.commands.operator_records.WikiClient") as MockClient:
+            exc = WikiAPIValidationError(
+                '{"error":"bad_request","message":"干员「不存在的干员XYZ」未识别"}'
+            )
+            mock_instance = self._mock_client(exc=exc)
+            MockClient.return_value = mock_instance
+
+            result = await handle_operator_records(match, group_id=1, user_id=1)
+            assert result == "干员「不存在的干员XYZ」未识别"

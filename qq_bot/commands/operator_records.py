@@ -1,10 +1,15 @@
 # -*- coding: utf-8 -*-
-# 日期：2026-08-25
+# 日期：2026-08-27
 # 开发者：橘雪莉
-# 功能摘要：#干员记录 指令 - 查询某干员在某流派的记录数（只回显个数）
+# 功能摘要：#干员记录 指令 - 查询干员在某流派的记录数（支持单干员、多干员组合）
 # 模型：deepseek-v4-pro
 
-"""#干员记录 指令 - 查干员在某流派的记录数"""
+"""#干员记录 指令 - 查干员在某流派的记录数
+
+语法（两种均需限定流派）：
+1. #干员记录 <干员> <流派>             — 单干员在某流派的记录数
+2. #干员记录 <干员A>+<干员B>+... <流派> — 多干员同时上场、且属于某流派的记录数
+"""
 from __future__ import annotations
 
 import json
@@ -16,6 +21,9 @@ from config import config
 from resolver.category import CATEGORIES, CATEGORY_ALIASES, normalize_category
 
 logger = logging.getLogger(__name__)
+
+# team 条件 members 上限（search-records 结构化约束）
+MAX_COMBO_OPERATORS = 12
 
 
 def _extract_friendly_message(exc: WikiAPIValidationError) -> str | None:
@@ -35,6 +43,35 @@ def _extract_friendly_message(exc: WikiAPIValidationError) -> str | None:
     return None
 
 
+def _parse_combo(args: str) -> list[str]:
+    """按 + 号分割干员名，去空白、去空项、去重（保序）。"""
+    result: list[str] = []
+    seen: set[str] = set()
+    for part in args.split("+"):
+        name = part.strip()
+        if name and name not in seen:
+            seen.add(name)
+            result.append(name)
+    return result
+
+
+async def _search_records(conditions: list[dict]):
+    """执行 search-records，返回 (SearchResult, None) 或 (None, 错误消息)。"""
+    try:
+        async with WikiClient(
+            base_url=config.wiki_base_url,
+            token=config.wiki_api_token,
+        ) as client:
+            result = await client.search_records(conditions=conditions)
+        return result, None
+    except WikiAPIValidationError as exc:
+        msg = _extract_friendly_message(exc)
+        return None, (msg if msg else "查询参数有误，请检查输入")
+    except Exception as exc:
+        logger.error("查询干员记录失败: %s", exc, exc_info=True)
+        return None, "查询失败，请稍后重试"
+
+
 async def handle_operator_records(
     match: re.Match,
     group_id: int,
@@ -43,72 +80,92 @@ async def handle_operator_records(
 ) -> str:
     """处理 #干员记录 指令。
 
-    格式: #干员记录 <干员> <流派>
-    示例: #干员记录 羽毛笔 黎博利队
+    格式一: #干员记录 <干员> <流派>
+      示例: #干员记录 羽毛笔 无精英满级
+    格式二: #干员记录 <干员A>+<干员B>+... <流派>
+      示例: #干员记录 羽毛笔+银灰 无精英满级
 
-    使用 search-records 的 team + category 组合条件，只回显记录数。
+    组合查询限定在某个流派上，team.members 为 AND（同时上场）关系。
     """
     args = match.group(1).strip()
 
     if not args:
         return (
             "缺少参数，格式：#干员记录 <干员> <流派>\n"
-            "示例：#干员记录 羽毛笔 黎博利队"
+            "或：#干员记录 <干员A>+<干员B> <流派> 查组合记录\n"
+            "示例：#干员记录 羽毛笔 无精英满级"
         )
 
-    parts = args.split()
+    # 最后一个空格分隔「干员部分」和「流派」（兼容带空格的英文名如 "La Pluma"）
+    parts = args.rsplit(maxsplit=1)
     if len(parts) < 2:
         return (
             "缺少流派参数，格式：#干员记录 <干员> <流派>\n"
-            "示例：#干员记录 羽毛笔 黎博利队"
+            "示例：#干员记录 羽毛笔 无精英满级\n"
+            "组合：#干员记录 羽毛笔+银灰 无精英满级"
         )
 
-    # 最后一个词是流派，其余是干员名（兼容带空格的英文名如 "La Pluma"）
-    category_input = parts[-1]
-    operator_input = " ".join(parts[:-1])
+    operator_part = parts[0].strip()
+    category_input = parts[1].strip()
 
-    # 干员名误填成了流派名/别名（参数写反）时给出友好提示
-    operator_stripped = operator_input.strip()
-    if operator_stripped in CATEGORIES or operator_stripped in CATEGORY_ALIASES:
-        return (
-            f"「{operator_input}」是流派名，不是干员哦～\n"
-            f"格式：#干员记录 <干员> <流派>\n"
-            f"示例：#干员记录 羽毛笔 无精英满级"
-        )
+    # 干员部分含 + 号 → 组合查询（team.members 多干员 AND）
+    if "+" in operator_part:
+        operators = _parse_combo(operator_part)
+        if len(operators) < 2:
+            return (
+                "组合查询至少需要两个干员，格式：#干员记录 <干员A>+<干员B> <流派>\n"
+                "示例：#干员记录 羽毛笔+银灰 无精英满级"
+            )
+        if len(operators) > MAX_COMBO_OPERATORS:
+            return f"最多支持 {MAX_COMBO_OPERATORS} 个干员的组合查询"
+
+        operator_display = "+".join(operators)
+        members = [{"operator": op} for op in operators]
+        is_combo = True
+    else:
+        # 干员名误填成了流派名/别名（参数写反）时给出友好提示
+        if operator_part in CATEGORIES or operator_part in CATEGORY_ALIASES:
+            return (
+                f"「{operator_part}」是流派名，不是干员哦～\n"
+                f"格式：#干员记录 <干员> <流派>\n"
+                f"示例：#干员记录 羽毛笔 无精英满级"
+            )
+        operator_display = operator_part
+        members = [{"operator": operator_part}]
+        is_combo = False
 
     category = normalize_category(category_input)
     if not category:
         return f"未找到流派 \"{category_input}\"，发送 #流派 查看所有流派"
 
     conditions = [
-        {"field": "team", "value": {"members": [{"operator": operator_input}]}},
+        {"field": "team", "value": {"members": members}},
         {"field": "category", "value": category},
     ]
 
-    logger.info("#干员记录: operator=%s, category=%s", operator_input, category)
+    logger.info(
+        "#干员记录: operator=%s, category=%s, combo=%s",
+        operator_display,
+        category,
+        is_combo,
+    )
 
-    try:
-        async with WikiClient(
-            base_url=config.wiki_base_url,
-            token=config.wiki_api_token,
-        ) as client:
-            result = await client.search_records(conditions=conditions)
-    except WikiAPIValidationError as exc:
-        msg = _extract_friendly_message(exc)
-        return msg if msg else "查询参数有误，请检查输入"
-    except Exception as exc:
-        logger.error("查询干员记录失败: %s", exc, exc_info=True)
-        return "查询失败，请稍后重试"
+    result, error = await _search_records(conditions)
+    if error:
+        return error
 
     count_valid = result.count_valid
     count = result.count
 
     if count_valid == 0:
-        return f"「{operator_input}」在「{category}」没有找到记录"
+        if is_combo:
+            return f"「{operator_display}」在「{category}」没有找到同时上场的记录"
+        return f"「{operator_display}」在「{category}」没有找到记录"
 
     old_count = count - count_valid
+    label = "组合记录统计" if is_combo else "记录统计"
     return (
-        f"「{operator_input}」在「{category}」的记录统计：\n"
+        f"「{operator_display}」在「{category}」的{label}：\n"
         f"总记录：{count} 条\n"
         f"有效记录：{count_valid} 条\n"
         f"旧纪录：{old_count} 条"
