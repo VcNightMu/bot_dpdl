@@ -22,8 +22,8 @@ from resolver.category import CATEGORIES, CATEGORY_ALIASES, normalize_category
 
 logger = logging.getLogger(__name__)
 
-# team 条件 members 上限（search-records 结构化约束）
-MAX_COMBO_OPERATORS = 12
+# team 条件 members 上限（一个关卡最多带 13 人）
+MAX_COMBO_OPERATORS = 13
 
 
 def _extract_friendly_message(exc: WikiAPIValidationError) -> str | None:
@@ -163,7 +163,7 @@ async def handle_operator_records(
         return f"「{operator_display}」在「{category}」没有找到记录"
 
     old_count = count - count_valid
-    label = "组合记录统计" if is_combo else "记录统计"
+    label = "同时上场的记录统计" if is_combo else "记录统计"
     return (
         f"「{operator_display}」在「{category}」的{label}：\n"
         f"总记录：{count} 条\n"

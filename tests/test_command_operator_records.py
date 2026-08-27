@@ -410,11 +410,11 @@ class TestComboQuery:
 
     @pytest.mark.asyncio
     async def test_combo_too_many_operators(self):
-        """超过 12 个干员时提示上限"""
-        ops = "+".join(f"干员{i}" for i in range(13))
+        """超过 13 个干员时提示上限"""
+        ops = "+".join(f"干员{i}" for i in range(14))
         match = make_match(f"#干员记录 {ops} 无精英满级")
         result = await handle_operator_records(match, group_id=1, user_id=1)
-        assert "最多支持 12 个干员" in result
+        assert "最多支持 13 个干员" in result
 
     @pytest.mark.asyncio
     async def test_combo_operator_not_found(self):
