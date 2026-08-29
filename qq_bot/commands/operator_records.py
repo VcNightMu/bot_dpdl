@@ -163,10 +163,25 @@ async def handle_operator_records(
         return f"「{operator_display}」在「{category}」没有找到记录"
 
     old_count = count - count_valid
+
+    # 合约记录单独统计（危机合约 + 危机合约Re，因合约非常驻）
+    # 合约记录仅统计有效合约记录，合约旧纪录计入旧纪录行
+    contract_count = 0
+    for story_name in ("危机合约", "危机合约Re"):
+        c_result, c_error = await _search_records(
+            conditions + [{"field": "story", "value": story_name}]
+        )
+        if c_error is None:
+            contract_count += c_result.count_valid
+
+    # 有效记录 = 非合约的有效记录（合约有效已单独列为合约记录）
+    effective_count = count_valid - contract_count
+
     label = "同时上场的记录统计" if is_combo else "记录统计"
     return (
         f"「{operator_display}」在「{category}」的{label}：\n"
         f"总记录：{count} 条\n"
-        f"有效记录：{count_valid} 条\n"
+        f"有效记录：{effective_count} 条\n"
+        f"合约记录：{contract_count} 条\n"
         f"旧纪录：{old_count} 条"
     )

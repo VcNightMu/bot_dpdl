@@ -30,6 +30,24 @@ class MockSearchResult:
     records: list = field(default_factory=list)
 
 
+def make_search_side_effect(main_count=375, main_valid=375, contract=None):
+    """构造 search_records 的 side_effect：主查询返回主结果，合约查询按 story 返回。
+
+    contract: {"危机合约": (count, valid), "危机合约Re": (count, valid)}
+    """
+    async def _side_effect(conditions=None, **kwargs):
+        story = None
+        for c in (conditions or []):
+            if c.get("field") == "story":
+                story = c.get("value")
+                break
+        if story is None:
+            return MockSearchResult(count=main_count, count_valid=main_valid)
+        cnt, valid = (contract or {}).get(story, (0, 0))
+        return MockSearchResult(count=cnt, count_valid=valid)
+    return _side_effect
+
+
 def make_match(text: str):
     return re.match(r"^#干员记录\s+(.+)", text)
 
@@ -92,21 +110,25 @@ class TestHandleOperatorRecords:
 
             await handle_operator_records(match, group_id=1, user_id=1)
 
-            conditions = mock_instance.search_records.call_args.kwargs["conditions"]
+            conditions = mock_instance.search_records.call_args_list[0].kwargs["conditions"]
             assert conditions[1]["value"] == "无精英满级"
 
     @pytest.mark.asyncio
     async def test_successful_query_shows_count(self):
-        """正常查询回显总记录/有效记录/旧纪录三行"""
+        """正常查询回显四行统计（总/有效/旧/合约）"""
         match = make_match("#干员记录 羽毛笔 无精英满级")
-        mock_result = MockSearchResult(count=375, count_valid=375)
+        contract = {"危机合约": (28, 27), "危机合约Re": (1, 1)}
 
         with patch(
             "qq_bot.commands.operator_records.normalize_category",
             return_value="无精英满级",
         ), patch("qq_bot.commands.operator_records.WikiClient") as MockClient:
             mock_instance = AsyncMock()
-            mock_instance.search_records = AsyncMock(return_value=mock_result)
+            mock_instance.search_records = AsyncMock(
+                side_effect=make_search_side_effect(
+                    main_count=375, main_valid=375, contract=contract
+                )
+            )
             mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
             mock_instance.__aexit__ = AsyncMock(return_value=False)
             MockClient.return_value = mock_instance
@@ -116,7 +138,8 @@ class TestHandleOperatorRecords:
             assert "羽毛笔" in result
             assert "无精英满级" in result
             assert "总记录：375 条" in result
-            assert "有效记录：375 条" in result
+            assert "有效记录：347 条" in result
+            assert "合约记录：28 条" in result
             assert "旧纪录：0 条" in result
 
     @pytest.mark.asyncio
@@ -137,7 +160,7 @@ class TestHandleOperatorRecords:
 
             await handle_operator_records(match, group_id=1, user_id=1)
 
-            call_kwargs = mock_instance.search_records.call_args.kwargs
+            call_kwargs = mock_instance.search_records.call_args_list[0].kwargs
             conditions = call_kwargs["conditions"]
             assert len(conditions) == 2
             assert conditions[0] == {
@@ -164,28 +187,33 @@ class TestHandleOperatorRecords:
 
             await handle_operator_records(match, group_id=1, user_id=1)
 
-            conditions = mock_instance.search_records.call_args.kwargs["conditions"]
+            conditions = mock_instance.search_records.call_args_list[0].kwargs["conditions"]
             assert conditions[0]["value"]["members"][0]["operator"] == "La Pluma"
 
     @pytest.mark.asyncio
     async def test_count_with_old_records_shows_note(self):
-        """含旧纪录时三行分别展示总数/有效/旧纪录"""
+        """含旧纪录时四行分别展示总数/有效/旧纪录/合约"""
         match = make_match("#干员记录 羽毛笔 无精英满级")
-        mock_result = MockSearchResult(count=503, count_valid=375)
+        contract = {"危机合约": (28, 27), "危机合约Re": (1, 1)}
 
         with patch(
             "qq_bot.commands.operator_records.normalize_category",
             return_value="无精英满级",
         ), patch("qq_bot.commands.operator_records.WikiClient") as MockClient:
             mock_instance = AsyncMock()
-            mock_instance.search_records = AsyncMock(return_value=mock_result)
+            mock_instance.search_records = AsyncMock(
+                side_effect=make_search_side_effect(
+                    main_count=503, main_valid=375, contract=contract
+                )
+            )
             mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
             mock_instance.__aexit__ = AsyncMock(return_value=False)
             MockClient.return_value = mock_instance
 
             result = await handle_operator_records(match, group_id=1, user_id=1)
             assert "总记录：503 条" in result
-            assert "有效记录：375 条" in result
+            assert "有效记录：347 条" in result
+            assert "合约记录：28 条" in result
             assert "旧纪录：128 条" in result
 
     @pytest.mark.asyncio
@@ -246,6 +274,42 @@ class TestHandleOperatorRecords:
 
             result = await handle_operator_records(match, group_id=1, user_id=1)
             assert result == "干员「不存在的干员XYZ」未识别"
+
+    @pytest.mark.asyncio
+    async def test_contract_records_counted_separately(self):
+        """合约记录单独统计：主查询 + 危机合约 + 危机合约Re 共三次调用"""
+        match = make_match("#干员记录 羽毛笔 无精英满级")
+        contract = {"危机合约": (28, 27), "危机合约Re": (1, 1)}
+
+        with patch(
+            "qq_bot.commands.operator_records.normalize_category",
+            return_value="无精英满级",
+        ), patch("qq_bot.commands.operator_records.WikiClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.search_records = AsyncMock(
+                side_effect=make_search_side_effect(
+                    main_count=375, main_valid=375, contract=contract
+                )
+            )
+            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_instance
+
+            await handle_operator_records(match, group_id=1, user_id=1)
+
+            assert mock_instance.search_records.call_count == 3
+            stories = [
+                next(
+                    (
+                        c["value"]
+                        for c in call.kwargs["conditions"]
+                        if c["field"] == "story"
+                    ),
+                    None,
+                )
+                for call in mock_instance.search_records.call_args_list
+            ]
+            assert stories == [None, "危机合约", "危机合约Re"]
 
 
 class TestExtractFriendlyMessage:
@@ -322,7 +386,7 @@ class TestComboQuery:
 
             await handle_operator_records(match, group_id=1, user_id=1)
 
-            conditions = mock_instance.search_records.call_args.kwargs["conditions"]
+            conditions = mock_instance.search_records.call_args_list[0].kwargs["conditions"]
             assert len(conditions) == 2
             assert conditions[0] == {
                 "field": "team",
@@ -337,38 +401,54 @@ class TestComboQuery:
 
     @pytest.mark.asyncio
     async def test_combo_shows_stats(self):
-        """组合查询回显三行统计（含流派）"""
+        """组合查询回显四行统计（含流派、合约）"""
         match = make_match("#干员记录 羽毛笔+银灰 无精英满级")
-        mock_result = MockSearchResult(count=120, count_valid=120)
+        contract = {"危机合约": (23, 18), "危机合约Re": (2, 1)}
 
         with patch(
             "qq_bot.commands.operator_records.normalize_category",
             return_value="无精英满级",
         ), patch("qq_bot.commands.operator_records.WikiClient") as MockClient:
-            mock_instance = self._mock_client(result=mock_result)
+            mock_instance = self._mock_client(
+                result=MockSearchResult(count=120, count_valid=120)
+            )
+            mock_instance.search_records = AsyncMock(
+                side_effect=make_search_side_effect(
+                    main_count=120, main_valid=120, contract=contract
+                )
+            )
             MockClient.return_value = mock_instance
 
             result = await handle_operator_records(match, group_id=1, user_id=1)
             assert "羽毛笔+银灰" in result
             assert "无精英满级" in result
             assert "总记录：120 条" in result
-            assert "有效记录：120 条" in result
+            assert "有效记录：101 条" in result
+            assert "合约记录：19 条" in result
             assert "旧纪录：0 条" in result
 
     @pytest.mark.asyncio
     async def test_combo_old_records(self):
-        """组合查询含旧纪录时旧纪录单独标注"""
+        """组合查询含旧纪录时旧纪录单独标注，且合约记录单独统计"""
         match = make_match("#干员记录 羽毛笔+银灰 无精英满级")
-        mock_result = MockSearchResult(count=200, count_valid=120)
+        contract = {"危机合约": (23, 18), "危机合约Re": (2, 1)}
 
         with patch(
             "qq_bot.commands.operator_records.normalize_category",
             return_value="无精英满级",
         ), patch("qq_bot.commands.operator_records.WikiClient") as MockClient:
-            mock_instance = self._mock_client(result=mock_result)
+            mock_instance = self._mock_client(
+                result=MockSearchResult(count=200, count_valid=120)
+            )
+            mock_instance.search_records = AsyncMock(
+                side_effect=make_search_side_effect(
+                    main_count=200, main_valid=120, contract=contract
+                )
+            )
             MockClient.return_value = mock_instance
 
             result = await handle_operator_records(match, group_id=1, user_id=1)
+            assert "合约记录：19 条" in result
             assert "旧纪录：80 条" in result
 
     @pytest.mark.asyncio
