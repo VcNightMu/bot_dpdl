@@ -10,6 +10,7 @@ import re
 from api_client import WikiClient
 from config import config
 from resolver.category import normalize_category
+from resolver.command_args import parse_episode_category
 from resolver.episode import resolve_aggregate_episodes
 from resolver.episode_short import resolve_episode_short, format_episode_choices
 from formatter.stale import format_stale
@@ -25,30 +26,20 @@ async def handle_stale(match: re.Match, group_id: int, user_id: int, operation_i
     支持缩写查询: #待压人 SV 四星队
     """
     args = match.group(1).strip()
-    
-    # 解析参数
-    parts = args.split()
-    if len(parts) < 2:
-        return (
-            "缺少流派参数，格式：#待压人 <活动名> <流派> [天数]\n"
-            "发送 #流派 查看所有流派"
-        )
-    
-    episode_input = parts[0]
-    category_input = parts[1]
-    days = config.default_stale_days
-    
-    # 解析可选的天数参数
-    if len(parts) >= 3:
-        try:
-            days = int(parts[2])
-        except ValueError:
-            return f"天数格式错误：{parts[2]}，请输入数字"
-    
-    # 归一流派名
-    category = normalize_category(category_input)
-    if not category:
-        return f"未找到流派 \"{category_input}\"，发送 #流派 查看所有流派"
+
+    # 解析参数：活动名 + 流派 + 可选天数
+    # （活动名可能含空格，交给 parse_episode_category 处理）
+    parsed = parse_episode_category(
+        args,
+        "#待压人 <活动名> <流派> [天数]",
+        allow_days=True,
+    )
+    if parsed.error:
+        return parsed.error
+
+    episode_input = parsed.episode
+    category = parsed.category
+    days = parsed.days if parsed.days is not None else config.default_stale_days
     
     # 尝试聚合活动解析（如"剿灭"→多个episode）
     agg_episodes = resolve_aggregate_episodes(episode_input)

@@ -122,3 +122,21 @@ class TestHandle:
         list_msg = [{"type": "text", "data": {"text": "#help"}}]
         result = await handler.handle(list_msg, group_id=1, user_id=1)
         assert result is not None  # 匹配到 #help
+
+    @pytest.mark.asyncio
+    async def test_list_input_with_trailing_whitespace(self, handler):
+        """数组格式带尾随空格/换行仍能匹配（回归：曾导致 Bot 静默不响应）"""
+        for text in ("#help ", "#help\n", " #help", "#流派\n"):
+            list_msg = [{"type": "text", "data": {"text": text}}]
+            result = await handler.handle(list_msg, group_id=1, user_id=1)
+            assert result is not None, f"{text!r} 未能匹配到指令"
+
+    @pytest.mark.asyncio
+    async def test_list_input_multi_segment(self, handler):
+        """多段文本拼接后再匹配"""
+        list_msg = [
+            {"type": "text", "data": {"text": "#help"}},
+            {"type": "text", "data": {"text": " "}},
+        ]
+        result = await handler.handle(list_msg, group_id=1, user_id=1)
+        assert result is not None

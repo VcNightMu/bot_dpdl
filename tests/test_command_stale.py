@@ -72,17 +72,58 @@ class TestHandleStale:
     async def test_invalid_category_returns_error(self):
         """无效流派名返回错误提示"""
         match = make_match("#待压人 惊霆无声 不存在的流派")
-        with patch("qq_bot.commands.stale.normalize_category", return_value=None):
+        with patch("resolver.command_args.normalize_category", return_value=None):
             result = await handle_stale(match, group_id=1, user_id=1)
             assert "未找到流派" in result
 
     @pytest.mark.asyncio
     async def test_invalid_days_returns_error(self):
-        """天数格式错误返回提示"""
+        """天数格式错误返回提示（用真实流派解析，不 mock）"""
         match = make_match("#待压人 惊霆无声 四星队 abc")
-        with patch("qq_bot.commands.stale.normalize_category", return_value="四星队"):
-            result = await handle_stale(match, group_id=1, user_id=1)
-            assert "天数格式错误" in result or "数字" in result
+        result = await handle_stale(match, group_id=1, user_id=1)
+        assert "天数格式错误" in result or "数字" in result
+
+    @pytest.mark.asyncio
+    async def test_episode_name_with_space(self):
+        """活动名含空格（线上真实存在「矢量突破#3 拟生态」）"""
+        match = make_match("#待压人 矢量突破#3 拟生态 四星队")
+        mock_result = MockStaleResult()
+
+        with patch("qq_bot.commands.stale.WikiClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.stale_records = AsyncMock(return_value=mock_result)
+            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_instance
+
+            await handle_stale(match, group_id=1, user_id=1)
+            call_kwargs = mock_instance.stale_records.call_args[1]
+            # 活动名必须完整保留，不能被截断成 "矢量突破#3"
+            assert call_kwargs["episode"] == "矢量突破#3 拟生态"
+            assert call_kwargs["category"] == "四星队"
+
+    @pytest.mark.asyncio
+    async def test_days_with_tian_suffix(self):
+        """天数写成 "180天" 也应正确解析"""
+        match = make_match("#待压人 惊霆无声 四星队 180天")
+        mock_result = MockStaleResult(days=180)
+
+        with patch("qq_bot.commands.stale.WikiClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.stale_records = AsyncMock(return_value=mock_result)
+            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_instance
+
+            await handle_stale(match, group_id=1, user_id=1)
+            assert mock_instance.stale_records.call_args[1]["days"] == 180
+
+    @pytest.mark.asyncio
+    async def test_extra_arg_not_silently_dropped(self):
+        """多余参数要明确报错，不能静默丢弃"""
+        match = make_match("#待压人 惊霆无声 四星队 180 extra")
+        result = await handle_stale(match, group_id=1, user_id=1)
+        assert "无法识别" in result or "天数格式错误" in result
 
     @pytest.mark.asyncio
     async def test_custom_days(self):
@@ -90,7 +131,7 @@ class TestHandleStale:
         match = make_match("#待压人 惊霆无声 四星队 180")
         mock_result = MockStaleResult(days=180)
 
-        with patch("qq_bot.commands.stale.normalize_category", return_value="四星队"), \
+        with patch("resolver.command_args.normalize_category", return_value="四星队"), \
              patch("qq_bot.commands.stale.WikiClient") as MockClient:
             mock_instance = AsyncMock()
             mock_instance.stale_records = AsyncMock(return_value=mock_result)
@@ -109,7 +150,7 @@ class TestHandleStale:
         match = make_match("#待压人 惊霆无声 四星队")
         mock_result = MockStaleResult()
 
-        with patch("qq_bot.commands.stale.normalize_category", return_value="四星队"), \
+        with patch("resolver.command_args.normalize_category", return_value="四星队"), \
              patch("qq_bot.commands.stale.config") as mock_config:
             mock_config.default_stale_days = 365
             with patch("qq_bot.commands.stale.WikiClient") as MockClient:
@@ -128,7 +169,7 @@ class TestHandleStale:
         """API 异常时返回错误提示"""
         match = make_match("#待压人 惊霆无声 四星队")
 
-        with patch("qq_bot.commands.stale.normalize_category", return_value="四星队"), \
+        with patch("resolver.command_args.normalize_category", return_value="四星队"), \
              patch("qq_bot.commands.stale.WikiClient") as MockClient:
             mock_instance = AsyncMock()
             mock_instance.stale_records = AsyncMock(side_effect=Exception("API 超时"))
@@ -145,7 +186,7 @@ class TestHandleStale:
         match = make_match("#待压人 惊霆无声 四星队")
         mock_result = MockStaleResult()
 
-        with patch("qq_bot.commands.stale.normalize_category", return_value="四星队"), \
+        with patch("resolver.command_args.normalize_category", return_value="四星队"), \
              patch("qq_bot.commands.stale.WikiClient") as MockClient:
             mock_instance = AsyncMock()
             mock_instance.stale_records = AsyncMock(return_value=mock_result)
@@ -168,7 +209,7 @@ class TestHandleStale:
             _stale_item("玻利瓦尔", "多索雷斯换水口")
         ])
 
-        with patch("qq_bot.commands.stale.normalize_category", return_value="四星队"), \
+        with patch("resolver.command_args.normalize_category", return_value="四星队"), \
              patch("qq_bot.commands.stale.WikiClient") as MockClient:
             mock_instance = AsyncMock()
             mock_instance.stale_records = AsyncMock(side_effect=[mock_result_1, mock_result_2])
@@ -194,7 +235,7 @@ class TestHandleStale:
             _stale_item("玻利瓦尔", "多索雷斯换水口")
         ])
 
-        with patch("qq_bot.commands.stale.normalize_category", return_value="四星队"), \
+        with patch("resolver.command_args.normalize_category", return_value="四星队"), \
              patch("qq_bot.commands.stale.WikiClient") as MockClient, \
              patch("qq_bot.commands.stale.format_stale") as mock_fmt:
             mock_instance = AsyncMock()

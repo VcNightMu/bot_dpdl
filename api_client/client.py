@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 import httpx
 from tenacity import (
@@ -86,6 +86,16 @@ class WikiAPINetworkError(WikiAPIError):
 
     def __init__(self, message: str = "网络波动，再试一次？") -> None:
         super().__init__(0, message)
+
+
+def _raise_network_error(retry_state: Any) -> Any:
+    """tenacity 的 retry_error_callback：重试耗尽后抛出友好异常。
+
+    重试期间抛出的必须仍是原始 httpx 异常，否则
+    retry_if_exception_type 无法匹配、重试会失效。
+    """
+    exc = retry_state.outcome.exception() if retry_state.outcome else None
+    raise WikiAPINetworkError() from exc
 
 
 # ---------------------------------------------------------------------------
@@ -159,55 +169,70 @@ class WikiClient:
             "X-Bot-Token": self._token,
         }
 
-    @retry(
-        stop=stop_after_attempt(2),
-        wait=wait_exponential(min=1, max=5),
-        retry=retry_if_exception_type(
-            (httpx.TimeoutException, httpx.ConnectError)
-        ),
-        reraise=True,
-    )
     async def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
-        """带信号量 + 重试的 POST 请求。"""
+        """带信号量 + 重试的 POST 请求。
+
+        重试只针对超时/连接错误；重试耗尽后统一转成 WikiAPINetworkError。
+        """
         if not self._client:
             raise RuntimeError("WikiClient not started, call start() first")
 
         async with WIKI_SEMAPHORE:
-            try:
-                resp = await self._client.post(
+            return await self._request_with_retry(
+                lambda: self._client.post(
                     path,
                     json=payload,
                     headers=self._build_headers(),
-                )
-            except (httpx.TimeoutException, httpx.ConnectError) as exc:
-                # tenacity 会重试一次，两次都失败则抛出
-                raise WikiAPINetworkError() from exc
+                ),
+                path,
+            )
 
-            return self._handle_response(resp, path)
-
-    @retry(
-        stop=stop_after_attempt(2),
-        wait=wait_exponential(min=1, max=5),
-        retry=retry_if_exception_type(
-            (httpx.TimeoutException, httpx.ConnectError)
-        ),
-        reraise=True,
-    )
     async def _get(self, path: str) -> dict[str, Any]:
         """带信号量 + 重试的 GET 请求。"""
         if not self._client:
             raise RuntimeError("WikiClient not started, call start() first")
 
         async with WIKI_SEMAPHORE:
-            try:
-                resp = await self._client.get(
+            return await self._request_with_retry(
+                lambda: self._client.get(
                     path,
                     headers=self._build_headers(),
-                )
-            except (httpx.TimeoutException, httpx.ConnectError) as exc:
-                raise WikiAPINetworkError() from exc
+                ),
+                path,
+            )
 
-            return self._handle_response(resp, path)
+    @staticmethod
+    async def _request_with_retry(
+        send: Callable[[], Awaitable[httpx.Response]], path: str
+    ) -> dict[str, Any]:
+        """执行一次 HTTP 请求，超时/连接错误重试后转为友好异常。
+
+        两个坑：
+        1. `send` 必须是 async def，不能是「返回 coroutine 的 lambda」。
+           tenacity 用 `isinstance(fn, Coroutine)` 判定是否异步；lambda 是
+           普通函数，会被当成同步分支处理 → 不重试、异常直接抛。
+        2. retry 包装器必须在函数内部动态构造，不能做成模块级单例，
+           否则并发请求会共用同一份重试状态。
+        """
+
+        async def _once() -> httpx.Response:
+            return await send()
+
+        retrying = retry(
+            stop=stop_after_attempt(2),
+            wait=wait_exponential(min=1, max=5),
+            retry=retry_if_exception_type(
+                (httpx.TimeoutException, httpx.ConnectError)
+            ),
+            # 用 retry_error_callback 而不是在函数体里 except 转换：
+            # 一旦把 httpx 异常换成 WikiAPINetworkError，
+            # retry_if_exception_type 就再也匹配不上，重试会彻底失效。
+            retry_error_callback=_raise_network_error,
+            reraise=True,
+        )(_once)
+
+        resp = await retrying()
+        return WikiClient._handle_response(resp, path)
 
     @staticmethod
     def _handle_response(resp: httpx.Response, path: str) -> dict[str, Any]:

@@ -7,6 +7,13 @@
 import os
 from dataclasses import dataclass
 
+from dotenv import load_dotenv
+
+# 在这里也加载一次 .env：main.py 里的 load_dotenv() 只覆盖「先跑 main」的
+# 场景，直接 import config 的脚本/测试会拿到空 token 并在调用 API 时 403。
+# load_dotenv 默认不覆盖已存在的环境变量，重复调用是安全的。
+load_dotenv()
+
 
 @dataclass
 class Config:

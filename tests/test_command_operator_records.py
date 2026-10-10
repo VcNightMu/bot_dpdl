@@ -311,6 +311,36 @@ class TestHandleOperatorRecords:
             ]
             assert stories == [None, "危机合约", "危机合约Re"]
 
+    @pytest.mark.asyncio
+    async def test_contract_query_failure_not_silently_zero(self):
+        """合约查询失败时不能静默当 0（否则失败部分被算进「有效记录」）"""
+        match = make_match("#干员记录 羽毛笔 无精英满级")
+
+        async def _side_effect(conditions=None, **kwargs):
+            for c in (conditions or []):
+                if c.get("field") == "story":
+                    # 两个合约查询都失败
+                    raise RuntimeError("429 rate limited")
+            return MockSearchResult(count=100, count_valid=90)
+
+        with patch(
+            "qq_bot.commands.operator_records.normalize_category",
+            return_value="无精英满级",
+        ), patch("qq_bot.commands.operator_records.WikiClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.search_records = AsyncMock(side_effect=_side_effect)
+            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_instance
+
+            result = await handle_operator_records(match, group_id=1, user_id=1)
+
+            # 必须显式告知统计不可用，且不能给出会误导的「有效/合约」拆分
+            assert "不可用" in result
+            assert "有效记录：90" not in result
+            assert "合约记录：0" not in result
+            assert "总记录：100" in result
+
 
 class TestExtractFriendlyMessage:
     """_extract_friendly_message 函数单元测试"""

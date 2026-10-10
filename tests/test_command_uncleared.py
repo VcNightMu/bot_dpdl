@@ -51,9 +51,34 @@ class TestHandleUncleared:
     async def test_invalid_category_returns_error(self):
         """无效流派名返回错误提示"""
         match = make_match("#未通关 惊霆无声 不存在的流派")
-        with patch("qq_bot.commands.uncleared.normalize_category", return_value=None):
+        with patch("resolver.command_args.normalize_category", return_value=None):
             result = await handle_uncleared(match, group_id=1, user_id=1)
             assert "未找到流派" in result
+
+    @pytest.mark.asyncio
+    async def test_episode_name_with_space(self):
+        """活动名含空格（线上真实存在「矢量突破#2 巫术之夜」）"""
+        match = make_match("#未通关 矢量突破#2 巫术之夜 四星队")
+        mock_result = MockUnclearedResult()
+
+        with patch("qq_bot.commands.uncleared.WikiClient") as MockClient:
+            mock_instance = AsyncMock()
+            mock_instance.uncleared = AsyncMock(return_value=mock_result)
+            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_instance
+
+            await handle_uncleared(match, group_id=1, user_id=1)
+            call_kwargs = mock_instance.uncleared.call_args[1]
+            assert call_kwargs["episode"] == "矢量突破#2 巫术之夜"
+            assert call_kwargs["category"] == "四星队"
+
+    @pytest.mark.asyncio
+    async def test_extra_arg_not_silently_dropped(self):
+        """多余参数要明确报错，不能静默丢弃"""
+        match = make_match("#未通关 惊霆无声 四星队 extra")
+        result = await handle_uncleared(match, group_id=1, user_id=1)
+        assert "无法识别" in result or "格式错误" in result
 
     @pytest.mark.asyncio
     async def test_successful_query(self):
@@ -61,7 +86,7 @@ class TestHandleUncleared:
         match = make_match("#未通关 惊霆无声 四星队")
         mock_result = MockUnclearedResult()
 
-        with patch("qq_bot.commands.uncleared.normalize_category", return_value="四星队"), \
+        with patch("resolver.command_args.normalize_category", return_value="四星队"), \
              patch("qq_bot.commands.uncleared.WikiClient") as MockClient:
             mock_instance = AsyncMock()
             mock_instance.uncleared = AsyncMock(return_value=mock_result)
@@ -78,7 +103,7 @@ class TestHandleUncleared:
         """API 异常时返回错误提示"""
         match = make_match("#未通关 惊霆无声 四星队")
 
-        with patch("qq_bot.commands.uncleared.normalize_category", return_value="四星队"), \
+        with patch("resolver.command_args.normalize_category", return_value="四星队"), \
              patch("qq_bot.commands.uncleared.WikiClient") as MockClient:
             mock_instance = AsyncMock()
             mock_instance.uncleared = AsyncMock(side_effect=Exception("API 超时"))
@@ -95,7 +120,7 @@ class TestHandleUncleared:
         match = make_match("#未通关 惊霆无声 四星队")
         mock_result = MockUnclearedResult(uncleared=[])
 
-        with patch("qq_bot.commands.uncleared.normalize_category", return_value="四星队"), \
+        with patch("resolver.command_args.normalize_category", return_value="四星队"), \
              patch("qq_bot.commands.uncleared.WikiClient") as MockClient:
             mock_instance = AsyncMock()
             mock_instance.uncleared = AsyncMock(return_value=mock_result)
@@ -113,7 +138,7 @@ class TestHandleUncleared:
         mock_result = MockUnclearedResult()
         test_index = {"by_operation": {"TR-22": {"cn_name": "明辨是非"}}}
 
-        with patch("qq_bot.commands.uncleared.normalize_category", return_value="四星队"), \
+        with patch("resolver.command_args.normalize_category", return_value="四星队"), \
              patch("qq_bot.commands.uncleared.WikiClient") as MockClient, \
              patch("qq_bot.commands.uncleared.format_uncleared") as mock_fmt:
             mock_instance = AsyncMock()
@@ -138,7 +163,7 @@ class TestHandleUncleared:
             {"operation": "玻利瓦尔", "cn_name": "多索雷斯换水口", "difficulty": "normal"}
         ])
 
-        with patch("qq_bot.commands.uncleared.normalize_category", return_value="四星队"), \
+        with patch("resolver.command_args.normalize_category", return_value="四星队"), \
              patch("qq_bot.commands.uncleared.WikiClient") as MockClient:
             mock_instance = AsyncMock()
             mock_instance.uncleared = AsyncMock(side_effect=[mock_result_1, mock_result_2])
@@ -164,7 +189,7 @@ class TestHandleUncleared:
             {"operation": "玻利瓦尔", "cn_name": "多索雷斯换水口", "difficulty": "normal"}
         ])
 
-        with patch("qq_bot.commands.uncleared.normalize_category", return_value="四星队"), \
+        with patch("resolver.command_args.normalize_category", return_value="四星队"), \
              patch("qq_bot.commands.uncleared.WikiClient") as MockClient, \
              patch("qq_bot.commands.uncleared.format_uncleared") as mock_fmt:
             mock_instance = AsyncMock()

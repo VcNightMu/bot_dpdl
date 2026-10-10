@@ -55,7 +55,9 @@ class CommandHandler:
             for seg in raw_msg:
                 if isinstance(seg, dict) and seg.get("type") == "text":
                     parts.append(seg.get("data", {}).get("text", ""))
-            msg = "".join(parts)
+            # 必须 strip：NapCat 的数组文本段常带尾随空格/换行，
+            # 而路由正则全是 ^# 锚定，不 strip 会导致整条指令静默不响应。
+            msg = "".join(parts).strip()
         else:
             msg = raw_msg.strip()
         

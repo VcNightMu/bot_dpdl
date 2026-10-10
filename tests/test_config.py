@@ -64,7 +64,7 @@ class TestConfigFromEnv:
             assert cfg.napcat_host == "napcat"
             assert cfg.napcat_port == 3001
             assert cfg.api_port == 8080
-            assert cfg.wiki_base_url == "https://wiki.arkrec.com"
+            assert cfg.wiki_base_url == "https://wiki.arkrec.com/v1/bot"
             assert cfg.wiki_api_token == ""
 
     def test_from_env_custom_values(self):

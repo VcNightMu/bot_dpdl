@@ -13,6 +13,7 @@ import re
 
 from api_client import WikiClient
 from resolver.category import normalize_category
+from resolver.command_args import parse_episode_category
 from resolver.episode import resolve_aggregate_episodes
 from resolver.episode_short import resolve_episode_short, format_episode_choices
 from formatter.uncleared import format_uncleared
@@ -70,22 +71,15 @@ async def handle_uncleared(match: re.Match, group_id: int, user_id: int, operati
     支持缩写查询: #未通关 SV 四星队
     """
     args = match.group(1).strip()
-    
-    # 解析参数
-    parts = args.split()
-    if len(parts) < 2:
-        return (
-            "缺少流派参数，格式：#未通关 <活动名> <流派>\n"
-            "发送 #流派 查看所有流派"
-        )
-    
-    episode_input = parts[0]
-    category_input = parts[1]
-    
-    # 归一流派名
-    category = normalize_category(category_input)
-    if not category:
-        return f"未找到流派 \"{category_input}\"，发送 #流派 查看所有流派"
+
+    # 解析参数：活动名 + 流派
+    # （活动名可能含空格，交给 parse_episode_category 处理）
+    parsed = parse_episode_category(args, "#未通关 <活动名> <流派>")
+    if parsed.error:
+        return parsed.error
+
+    episode_input = parsed.episode
+    category = parsed.category
     
     # 尝试聚合活动解析（如"剿灭"→多个episode）
     agg_episodes = resolve_aggregate_episodes(episode_input)

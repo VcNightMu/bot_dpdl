@@ -167,21 +167,38 @@ async def handle_operator_records(
     # 合约记录单独统计（危机合约 + 危机合约Re，因合约非常驻）
     # 合约记录仅统计有效合约记录，合约旧纪录计入旧纪录行
     contract_count = 0
+    contract_failed = False
     for story_name in ("危机合约", "危机合约Re"):
         c_result, c_error = await _search_records(
             conditions + [{"field": "story", "value": story_name}]
         )
         if c_error is None:
             contract_count += c_result.count_valid
+        else:
+            # 不能静默当成 0：否则失败部分会被算进「有效记录」，
+            # 四行数字不再满足 总记录 = 有效 + 合约 + 旧纪录，且用户看不出来
+            logger.warning("合约记录查询失败(%s): %s", story_name, c_error)
+            contract_failed = True
 
     # 有效记录 = 非合约的有效记录（合约有效已单独列为合约记录）
     effective_count = count_valid - contract_count
 
     label = "同时上场的记录统计" if is_combo else "记录统计"
+    if contract_failed:
+        # 合约统计不可用时，不给出会误导的「有效/合约」拆分
+        tail = (
+            "有效记录：统计不可用（合约记录查询失败）\n"
+            f"旧纪录：{old_count} 条\n"
+            "⚠️ 合约记录统计暂时不可用，请稍后重试"
+        )
+    else:
+        tail = (
+            f"有效记录：{effective_count} 条\n"
+            f"合约记录：{contract_count} 条\n"
+            f"旧纪录：{old_count} 条"
+        )
     return (
         f"「{operator_display}」在「{category}」的{label}：\n"
         f"总记录：{count} 条\n"
-        f"有效记录：{effective_count} 条\n"
-        f"合约记录：{contract_count} 条\n"
-        f"旧纪录：{old_count} 条"
+        f"{tail}"
     )
