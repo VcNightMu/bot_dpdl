@@ -80,10 +80,15 @@ def test_resolve_episode():
 
 
 def test_normalize_category():
+    # 注意：流派现为 9 个（resolver/category.py:13-23）。
+    # 「精一满级」是独立标准流派，不再是「精一满级四星队」的别名。
+    assert len(CATEGORIES) == 9
     assert normalize_category("四星队") == "四星队"
     assert normalize_category("四星") == "四星队"
     assert normalize_category("4星") == "四星队"
-    assert normalize_category("精一满级") == "精一满级四星队"
+    assert normalize_category("精一满级") == "精一满级"
+    assert normalize_category("精一满") == "精一满级"
+    assert normalize_category("精一满级四星") == "精一满级四星队"
     assert normalize_category("三星") == "三星队"
     assert normalize_category("无精英") == "无精英满级"
     assert normalize_category("不存在") is None
@@ -156,14 +161,28 @@ def test_format_uncleared():
 
 
 def test_format_stale():
+    # 当前 format_stale 从 item["records"][0] 取 team（列表）与 url，
+    # 不再读旧的扁平字段 team_size / latest_url。
     stale = [
-        {"operation": "H11-1", "cn_name": "惊霆行动-1", "difficulty": "challenge",
-         "team_size": 4, "latest_date": "2024-09-01", "latest_url": "https://bilibili.com/video/BV1xxx"},
+        {
+            "operation": "H11-1",
+            "cn_name": "惊霆行动-1",
+            "difficulty": "challenge",
+            "ageDays": 400,
+            "records": [
+                {
+                    "team": [{"name": "干员A"}, {"name": "干员B"},
+                             {"name": "干员C"}, {"name": "干员D"}],
+                    "url": "https://bilibili.com/video/BV1xxx",
+                }
+            ],
+        },
     ]
     result = format_stale("惊霆无声", "四星队", 365, stale)
     assert "惊霆无声" in result
     assert "4人" in result
     assert "BV1xxx" in result
+    assert "400天前" in result
     print("✅ format_stale 通过")
 
 

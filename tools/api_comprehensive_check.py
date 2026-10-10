@@ -2,6 +2,7 @@
 明日方舟Bot综合测试 - 远野汉娜
 按照测试任务分配文件执行所有测试用例
 """
+import os
 import requests
 import json
 import time
@@ -16,8 +17,14 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 # ============================================================
 # 配置
 # ============================================================
-BASE_URL = "https://wiki.arkrec.com/v1/bot"
-BOT_TOKEN = "23c85d451d3e5b1dacf2d74eb6397f2c00452430b169466b6664c1df428d128a"
+BASE_URL = os.getenv("WIKI_BASE_URL", "https://wiki.arkrec.com/v1/bot")
+BOT_TOKEN = os.getenv("WIKI_API_TOKEN", "")
+if not BOT_TOKEN:
+    sys.exit(
+        "错误：未设置 WIKI_API_TOKEN。\n"
+        "请先在仓库根创建 .env（参考 .env.example）并填入 Wiki API Token，"
+        "或以环境变量方式传入。"
+    )
 HEADERS = {
     "Content-Type": "application/json",
     "X-Bot-Token": BOT_TOKEN
