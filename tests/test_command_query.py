@@ -3,6 +3,15 @@
 # 功能: query.py 单元测试 - 验证 #查 指令的参数解析和API调用
 # 模型: mimo/mimo-v2.5
 
+
+import sys as _sys
+from pathlib import Path as _Path
+
+# 仓库根：由本文件位置推导，保证在任意路径/任意机器都能从当前仓库导入
+_REPO_ROOT = _Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_REPO_ROOT))
+
 """qq_bot/commands/query.py 单元测试"""
 
 import sys
@@ -11,7 +20,7 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from dataclasses import dataclass, field
 
-sys.path.insert(0, r"F:\ArkCodes\bot_dpdl")
+pass  # 仓库根已由 _REPO_ROOT 注入 sys.path
 
 from qq_bot.commands.query import handle_query
 

@@ -1,3 +1,12 @@
+
+import sys as _sys
+from pathlib import Path as _Path
+
+# 仓库根：由本文件位置推导，保证在任意路径/任意机器都能从当前仓库导入
+_REPO_ROOT = _Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_REPO_ROOT))
+
 """
 P0/P1问题回归验证 - 远野汉娜
 """
@@ -298,7 +307,7 @@ import subprocess
 ret = subprocess.run(
     ["python", "-m", "pytest", "tests/test_handler.py", "tests/test_command_query.py", 
      "tests/test_command_uncleared.py", "tests/test_command_stale.py", "tests/test_models.py", "-v", "--tb=short"],
-    capture_output=True, text=True, encoding="utf-8", errors="replace", cwd="F:\\ArkCodes\\bot_dpdl"
+    capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=str(_REPO_ROOT)
 )
 print(ret.stdout[-500:] if len(ret.stdout) > 500 else ret.stdout)
 if ret.returncode == 0:

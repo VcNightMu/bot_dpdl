@@ -1,3 +1,12 @@
+
+import sys as _sys
+from pathlib import Path as _Path
+
+# 仓库根：由本文件位置推导，保证在任意路径/任意机器都能从当前仓库导入
+_REPO_ROOT = _Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_REPO_ROOT))
+
 """api_client/client.py 单元测试。"""
 
 import sys
@@ -8,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock
 import httpx
 import pytest
 
-_root = Path(r"F:\ArkCodes\bot_dpdl")
+_root = _REPO_ROOT
 
 # 加载 models
 _spec_m = importlib.util.spec_from_file_location("api_client.models", _root / "api_client/models.py")

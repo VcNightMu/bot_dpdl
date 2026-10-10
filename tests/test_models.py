@@ -1,3 +1,12 @@
+
+import sys as _sys
+from pathlib import Path as _Path
+
+# 仓库根：由本文件位置推导，保证在任意路径/任意机器都能从当前仓库导入
+_REPO_ROOT = _Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_REPO_ROOT))
+
 """api_client/models.py 单元测试。"""
 
 import sys
@@ -5,7 +14,7 @@ import importlib.util
 from pathlib import Path
 
 _spec = importlib.util.spec_from_file_location(
-    "api_client.models", Path(r"F:\ArkCodes\bot_dpdl\api_client\models.py")
+    "api_client.models", _REPO_ROOT / "api_client" / "models.py"
 )
 _mod = importlib.util.module_from_spec(_spec)
 sys.modules["api_client.models"] = _mod

@@ -1,3 +1,12 @@
+
+import sys as _sys
+from pathlib import Path as _Path
+
+# 仓库根：由本文件位置推导，保证在任意路径/任意机器都能从当前仓库导入
+_REPO_ROOT = _Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_REPO_ROOT))
+
 """
 明日方舟Bot综合测试脚本 - 远野汉娜执行
 测试范围：除NapCat以外的所有功能模块
@@ -937,7 +946,7 @@ def test_bot_commands():
     log("=" * 60)
 
     import sys
-    sys.path.insert(0, r"F:\ArkCodes\bot_dpdl")
+    pass  # 仓库根已由 _REPO_ROOT 注入 sys.path
 
     # === 指令路由测试 ===
     # BOT-R01: 非指令消息返回None
@@ -1164,7 +1173,7 @@ def test_formatters():
     log("=" * 60)
 
     import sys
-    sys.path.insert(0, r"F:\ArkCodes\bot_dpdl")
+    pass  # 仓库根已由 _REPO_ROOT 注入 sys.path
 
     # === #查 格式验证 ===
     from formatter.record import format_records, format_single_record
@@ -1463,9 +1472,9 @@ def main():
         "issues": issues,
         "perf_data": perf_data,
     }
-    with open(r"F:\ArkCodes\bot_dpdl\docs\test_results.json", "w", encoding="utf-8") as f:
+    with open(_REPO_ROOT / "docs" / "test_results.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
-    print(f"\n  结果已保存到: F:\\ArkCodes\\bot_dpdl\\docs\\test_results.json")
+    print(f"\n  结果已保存到: {_REPO_ROOT / 'docs' / 'test_results.json'}")
 
     return 0 if results["fail"] == 0 else 1
 
