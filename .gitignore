@@ -56,6 +56,10 @@ docker-compose.override.yml
 # Claude Code
 .claude/
 
+# 部署脚本/凭据（含服务器连接信息，绝不可提交）
+.deploy*
+deploy/
+
 # OS
 .DS_Store
 Thumbs.db
