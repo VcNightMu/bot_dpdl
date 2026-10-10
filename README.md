@@ -60,15 +60,13 @@ bot_dpdl/
 ├── main.py              # FastAPI 入口，接收 OneBot11 事件
 ├── config.py            # 配置管理（从环境变量加载）
 ├── requirements.txt     # Python 依赖
+├── .env.example         # 环境变量模板（cp .env.example .env）
 ├── api_client/          # Wiki API 异步客户端
 │   ├── client.py        # HTTP 封装 + 重试 + 并发控制
 │   └── models.py        # 数据模型
-├── cache/               # 本地缓存
-│   ├── db.py            # SQLite 存储
-│   ├── menu_cache.py    # 关卡树缓存
-│   └── operation_index.py # 关卡索引缓存
 ├── resolver/            # 数据解析
-│   ├── category.py      # 流派解析（预设流派 + 别名）
+│   ├── category.py      # 流派解析（9 个预设流派 + 别名）
+│   ├── command_args.py  # 指令参数统一解析（多余参数 / 天数数字冲突）
 │   ├── duplicate.py     # 重复关卡代号检测
 │   ├── episode.py       # 章节/活动解析（含剿灭聚合）
 │   ├── episode_short.py # 活动缩写映射
@@ -92,9 +90,16 @@ bot_dpdl/
 │       ├── stale.py     # #待压人
 │       ├── category.py  # #流派
 │       └── help.py      # #help
-├── tasks/               # 任务文档
-└── tests/               # 测试
+├── tests/               # 单元测试（pytest 可直接整目录运行）
+├── tools/               # 手工/线上检查脚本（不参与 pytest 收集）
+├── api_test/            # Wiki API 连通性/契约测试脚本
+├── docs/                # 文档（注意：被 .gitignore 忽略，不进版本控制）
+├── tasks/               # 历史任务文档（已失效，仅留档）
+└── docker-compose.yml / Dockerfile
 ```
+
+> `cache/` 已删除：它是从未被生产代码引用的死代码（相对导入写法本身也跑不起来），
+> 项目当前**不使用 SQLite**，启动时实时拉取 menu 并在内存建索引。
 
 ## 快速开始
 
@@ -151,15 +156,26 @@ docker-compose up -d
 ### 运行测试
 
 ```bash
+# 单元测试（372 passed，可整目录运行）
 pytest tests/
 ```
+
+`tools/` 下是**手工/线上检查脚本**（打真实 Wiki API，需要网络与 Token），
+不参与 pytest 收集，按需单独运行：
+
+| 脚本 | 用途 |
+|------|------|
+| `tools/e2e_smoke.py` | 对本地 `127.0.0.1:8080` 发 OneBot 事件做端到端冒烟 |
+| `tools/api_comprehensive_check.py` | 打线上 API 的全量契约/连通性检查 |
+| `tools/formatter_check.py` | 单独的 formatter 输出检查 |
 
 ### 项目约定
 
 - 使用 `async/await` 进行异步编程
 - HTTP 请求集成 tenacity 重试（最多 2 次，指数退避）
 - 并发控制使用信号量（默认 10）
-- 消息长度限制 800 字符（可通过 `MAX_MSG_LENGTH` 配置）
+- 消息长度限制 800 字符。⚠️ 该值**目前硬编码在 `formatter/record.py`**，
+  `MAX_MSG_LENGTH` 环境变量虽已定义但尚未接线，改 `.env` 暂不生效
 - Git 提交信息格式：`type: 描述 - [开发者:名字] [模型:模型名]`
 
 ## 致谢

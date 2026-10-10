@@ -34,16 +34,28 @@ ENV/
 
 # Environment variables
 .env
+# .env.example 是模板（不含真实凭据），必须保留可提交
 
-# Sensitive test data
+# ---------------------------------------------------------------------------
+# 文档与线上测试脚本：默认不进版本控制，逐项放行
+# 放行原则：文件通过 `git check-ignore -v <文件>` 确认为「无凭据」后再加 ! 规则
+# ---------------------------------------------------------------------------
 api_test/
 docs/
 
+# 放行：部署指南（已脱敏，服务器 IP/QQ 号均为占位符）
+!docs/
+docs/*
+!docs/部署指南.md
+
+# 排除：含 SSH 密码 / WebUI token / 云实例 ID，绝不可提交
+docs/服务器信息.md
+
+# 预留：将来新增不宜公开的文档放这里
+docs/内部/
+
 # pytest
 .pytest_cache/
-
-# Cache
-cache/
 
 # Docker
 Dockerfile
@@ -56,9 +68,31 @@ docker-compose.override.yml
 # Claude Code
 .claude/
 
-# 部署脚本/凭据（含服务器连接信息，绝不可提交）
+# ---------------------------------------------------------------------------
+# 部署脚本/凭据：默认全部忽略（含服务器连接信息与 Token，绝不可提交）
+#
+# 政策 = 白名单：新增脚本默认被忽略，必须显式声明 ! 才会进仓库。
+# 想放行某个无凭据脚本时，加一行 `!scripts/<文件名>`，并先自查它不含 Token/密码/IP。
+# 下方否定规则是「防手滑」安全网——即使某个凭据文件被显式放行，也会被重新挡住。
+# ---------------------------------------------------------------------------
 .deploy*
 deploy/
+scripts/
+secrets/
+*.pem
+*.key
+
+# 安全网：任何看起来像凭据的文件一律挡回
+!scripts/
+scripts/*
+!scripts/*.md
+!scripts/*.example
+scripts/*credential*
+scripts/*secret*
+scripts/*password*
+scripts/*token*
+scripts/.env*
+scripts/*.env
 
 # OS
 .DS_Store

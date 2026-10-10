@@ -1,3 +1,5 @@
+> ⚠️ 历史任务文档（2026 年 6 月），仅作留档，不代表当前实现或当前可用人力。F:\ArkCodes 旧路径已统一改为 F:\AllCodes。cache/ 包已删除（死代码）。
+
 <!-- 日期: 2026-06-01 -->
 <!-- 开发者: 樱羽艾玛 -->
 <!-- 功能: 给黑部奈叶香的任务分解，Wiki API模块 -->
@@ -11,8 +13,8 @@
 
 实现所有和少人wiki API（wiki.arkrec.com/bot）相关的模块。技术方案已全部确认（v1.2），请先阅读完整技术方案和API文档再动手。
 
-**技术方案：** `F:\ArkCodes\bot_dpdl\docs\技术方案.md`
-**API文档：** `F:\ArkCodes\bot_dpdl\docs\少人wiki_API.md`
+**技术方案：** `F:\AllCodes\bot_dpdl\docs\技术方案.md`
+**API文档：** `F:\AllCodes\bot_dpdl\docs\少人wiki_API.md`
 
 ## 你负责的模块
 
@@ -119,7 +121,7 @@ class StaleResult:
 
 ## 注意事项
 
-1. 代码放到 `F:\ArkCodes\bot_dpdl\src\` 目录下对应的子目录
+1. 代码放到 `F:\AllCodes\bot_dpdl\src\` 目录下对应的子目录
 2. 所有操作用 async/await
 3. API的token通过环境变量 `WIKI_API_TOKEN` 传入，请求时放在Header中
 4. 完成后写个简短的进度报告到 `C:\Users\Administrator\.qclaw\daily-reports\2026-06-01\progress-黑部奈叶香.md`
