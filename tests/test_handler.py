@@ -23,6 +23,36 @@ pass  # 仓库根已由 _REPO_ROOT 注入 sys.path
 from qq_bot.handler import CommandHandler
 
 
+_CMD_NAME_RE = re.compile(r"\^?(#[^\s\\$()*+?\[\]{}|]+)")
+
+
+def _routed_commands(handler) -> set[str]:
+    """路由表里注册的指令名集合。
+
+    路由两种形态：
+        有参数  '^#干员记录\\s+(.+)'
+        无参数  '^#help$'
+    统一用正则抓出命令名（跳过转义与重复限定符，避免把 '(+)' 里的 '+' 当命令）。
+    """
+    names = set()
+    for pattern, _ in handler.commands:
+        m = _CMD_NAME_RE.match(pattern.pattern)
+        if m:
+            names.add(m.group(1))
+    return names
+
+
+def _help_commands() -> set[str]:
+    """#help 文本里作为「指令说明行」列出的命令集合（行首以 # 开头）。"""
+    from formatter.help import format_help
+
+    return {
+        line.split()[0]
+        for line in format_help().splitlines()
+        if line.startswith("#")
+    }
+
+
 @pytest.fixture
 def handler():
     """创建 CommandHandler 实例"""
@@ -36,6 +66,26 @@ class TestCommandRegistration:
         """所有指令都已注册（含无参数分支）"""
         # 8个有参数指令 + 6个无参数分支 = 14
         assert len(handler.commands) == 14
+
+    def test_every_routed_command_is_documented_in_help(self, handler):
+        """防漂移：每条已注册指令都必须在 #help 里说明。
+
+        历史教训：加了新指令却忘了更新 formatter/help.py，
+        用户查帮助看不到新功能。这条测试锁死两者的对应关系——
+        以后新增指令如果没写进 help，这里会直接失败。
+        """
+        missing = _routed_commands(handler) - _help_commands()
+
+        assert not missing, (
+            f"这些指令已注册但没写进 #help：{sorted(missing)}。"
+            f"请更新 formatter/help.py 的指令列表。"
+        )
+
+    def test_help_has_no_phantom_commands(self, handler):
+        """反向：help 里不该出现根本没注册的指令（避免文档吹牛）"""
+        phantom = _help_commands() - _routed_commands(handler)
+
+        assert not phantom, f"#help 里列出了未注册的指令：{sorted(phantom)}"
 
     def test_patterns_are_compiled_regex(self, handler):
         """注册的模式都是已编译的正则"""
