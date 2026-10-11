@@ -28,6 +28,7 @@ class CommandHandler:
         from qq_bot.commands.help import handle_help
         from qq_bot.commands.operation_info import handle_operation_info
         from qq_bot.commands.operator_records import handle_operator_records
+        from qq_bot.commands.high_difficulty import handle_high_difficulty
         
         # 指令匹配规则（顺序重要：无参数的放前面，有参数的放后面）
         self.commands = [
@@ -37,12 +38,14 @@ class CommandHandler:
             (re.compile(r"^#待压人\s*$"), self._no_args_stale),
             (re.compile(r"^#人数\s*$"), self._no_args_operation_info),
             (re.compile(r"^#干员记录\s*$"), self._no_args_operator_records),
+            (re.compile(r"^#高难\s*$"), self._no_args_high_difficulty),
             # 有参数分支
             (re.compile(r"^#查\s+(.+)"), handle_query),
             (re.compile(r"^#未通关\s+(.+)"), handle_uncleared),
             (re.compile(r"^#待压人\s+(.+)"), handle_stale),
             (re.compile(r"^#人数\s+(.+)"), handle_operation_info),
             (re.compile(r"^#干员记录\s+(.+)"), handle_operator_records),
+            (re.compile(r"^#高难\s+(.+)"), handle_high_difficulty),
             (re.compile(r"^#流派\s*$"), handle_category),
             (re.compile(r"^#help$"), handle_help),
         ]
@@ -95,3 +98,7 @@ class CommandHandler:
     @staticmethod
     async def _no_args_operator_records(match: re.Match, group_id: int, user_id: int, operation_index: dict | None = None) -> str:
         return "缺少参数，格式：#干员记录 <干员> <流派>\n示例：#干员记录 羽毛笔 黎博利队"
+
+    @staticmethod
+    async def _no_args_high_difficulty(match: re.Match, group_id: int, user_id: int, operation_index: dict | None = None) -> str:
+        return "缺少参数，格式：#高难 <活动名> <流派>\n示例：#高难 巴别塔 四星队\n发送 #流派 查看所有流派"

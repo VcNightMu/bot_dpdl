@@ -3,6 +3,7 @@
 from .record import format_records, format_single_record
 from .uncleared import format_uncleared
 from .stale import format_stale
+from .high_difficulty import format_high_difficulty
 from .category import format_categories
 from .help import format_help
 from .video import extract_bv_number, format_video_link
@@ -12,6 +13,7 @@ __all__ = [
     "format_single_record",
     "format_uncleared",
     "format_stale",
+    "format_high_difficulty",
     "format_categories",
     "format_help",
     "extract_bv_number",

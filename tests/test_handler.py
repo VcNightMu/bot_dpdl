@@ -34,8 +34,8 @@ class TestCommandRegistration:
 
     def test_commands_registered(self, handler):
         """所有指令都已注册（含无参数分支）"""
-        # 7个有参数指令 + 5个无参数分支 = 12
-        assert len(handler.commands) == 12
+        # 8个有参数指令 + 6个无参数分支 = 14
+        assert len(handler.commands) == 14
 
     def test_patterns_are_compiled_regex(self, handler):
         """注册的模式都是已编译的正则"""

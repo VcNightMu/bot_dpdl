@@ -4,6 +4,12 @@ from .operation import resolve_operation, normalize_operation, build_operation_i
 from .episode import resolve_episode, build_episode_index
 from .episode_short import resolve_episode_short, format_episode_choices
 from .category import normalize_category, CATEGORIES, CATEGORY_ALIASES
+from .high_difficulty import (
+    HIGH_TEAM_THRESHOLD,
+    HighDifficultyRecord,
+    difficulty_label,
+    find_high_difficulty,
+)
 
 __all__ = [
     "resolve_operation",
@@ -16,4 +22,8 @@ __all__ = [
     "normalize_category",
     "CATEGORIES",
     "CATEGORY_ALIASES",
+    "HIGH_TEAM_THRESHOLD",
+    "HighDifficultyRecord",
+    "difficulty_label",
+    "find_high_difficulty",
 ]
