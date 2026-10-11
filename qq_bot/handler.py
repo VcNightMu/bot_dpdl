@@ -101,4 +101,7 @@ class CommandHandler:
 
     @staticmethod
     async def _no_args_high_difficulty(match: re.Match, group_id: int, user_id: int, operation_index: dict | None = None) -> str:
-        return "缺少参数，格式：#高难 <活动名> <流派>\n示例：#高难 巴别塔 四星队\n发送 #流派 查看所有流派"
+        return ("缺少参数，格式：#高难 <活动名> <流派> [人数]\n"
+                "示例：#高难 巴别塔 四星队\n"
+                "人数省略时默认 10，可填 1–13\n"
+                "发送 #流派 查看所有流派")

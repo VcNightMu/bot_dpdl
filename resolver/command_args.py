@@ -1,11 +1,11 @@
 # 日期: 2026-06-16
 # 开发者: 橘雪莉
-# 功能摘要: #未通关/#待压人 共用的「活动名 + 流派 [+ 天数]」参数解析（支持含空格的活动名）
+# 功能摘要: #未通关/#待压人/#高难 共用的「活动名 + 流派 [+ 数字]」参数解析（支持含空格的活动名）
 # 模型：deepseek-v4-pro
 
-"""#未通关 / #待压人 的参数解析。
+"""#未通关 / #待压人 / #高难 的参数解析。
 
-这两个指令的输入是「活动名 + 流派 [+ 天数]」三段，且都用空格分隔，
+这三个指令的输入是「活动名 + 流派 [+ 数字]」三段，且都用空格分隔，
 但空格是歧义分隔符——线上确实存在含空格的活动名：
 
     矢量突破#3 拟生态
@@ -18,7 +18,8 @@
 2. 不成再试「第二个 token」（保持原有的常规解析行为）
 3. 都不行则报错，并明确指出多余参数放在哪里——绝不静默丢弃
 
-天数参数同理：在流派之外的 token 里找纯数字（允许 "180天" 这种写法），
+末尾数字的含义由调用方决定（#待压人 = 天数，#高难 = 人数阈值），
+本模块只负责取出来，不做范围校验。允许 "180天" 这种写法，
 让用户写 `180 天` 也不会得到奇怪的报错。
 """
 from __future__ import annotations
@@ -28,8 +29,8 @@ from typing import NamedTuple
 
 from .category import normalize_category
 
-# 天数 token：纯数字，或数字 + 「天」
-_DAYS_RE = re.compile(r"^(\d+)\s*天?$")
+# 末尾数字 token：纯数字，或数字 + 「天」（兼容 #待压人 的 "180天" 写法）
+_NUMBER_RE = re.compile(r"^(\d+)\s*天?$")
 
 
 class CommandArgs(NamedTuple):
@@ -37,21 +38,29 @@ class CommandArgs(NamedTuple):
 
     episode: str | None
     category: str | None
-    days: int | None
+    value: int | None          # 末尾可选数字（#待压人=天数 / #高难=人数阈值）
     error: str | None
+
+    @property
+    def days(self) -> int | None:
+        """向后兼容别名：值就是末尾数字，与 value 等价。"""
+        return self.value
 
 
 def parse_episode_category(
     args: str,
     usage: str,
     *,
-    allow_days: bool = False,
+    allow_number: bool = False,
 ) -> CommandArgs:
-    """解析「活动名 + 流派 [+ 天数]」。
+    """解析「活动名 + 流派 [+ 数字]」。
 
     args: 指令参数原文（已 strip）
     usage: 用于报错的用法提示，如 "#未通关 <活动名> <流派>"
-    allow_days: 是否接受末尾的可选天数（仅 #待压人 为 True）
+    allow_number: 是否接受末尾的可选数字（#待压人 的天数 / #高难 的人数阈值）
+
+    注意：本函数只负责把末尾数字取出来放进 `value`，
+    具体取值范围（如 1–13）由调用方校验并给出针对性提示。
     """
     parts = args.split()
 
@@ -59,23 +68,23 @@ def parse_episode_category(
         return CommandArgs(None, None, None, f"缺少参数，格式：{usage}")
 
     # -- 1. 定位流派 --
-    # 语法是「活动名… 流派 [天数]」，从右往左找第一个能识别成流派的 token。
-    # - 常规「惊霆无声 四星队」        → 四星队（末位，右侧无天数）
-    # - 带天数「惊霆无声 四星队 180」   → 四星队（跳过数字 180）
+    # 语法是「活动名… 流派 [数字]」，从右往左找第一个能识别成流派的 token。
+    # - 常规「惊霆无声 四星队」        → 四星队（末位，右侧无数字）
+    # - 带数字「惊霆无声 四星队 180」   → 四星队（跳过数字 180）
     # - 含空格活动名「矢量突破#3 拟生态 四星队」→ 四星队
     # - 两者叠加「矢量突破#3 拟生态 四星队 180」→ 四星队
     #
     # 坑：CATEGORY_ALIASES 把练度代号也注册成了流派别名
     # （180→精一满级、1604→精一满级四星队、114→精一1级四星队 …），
-    # 所以纯数字 token 既可能是天数、也可能是流派。末尾是数字时一律
-    # 当天数处理并跳过，否则「#待压人 X 四星队 180」会把 180 当流派。
+    # 所以纯数字 token 既可能是末尾数字、也可能是流派。末尾是数字时一律
+    # 当数字处理并跳过，否则「#待压人 X 四星队 180」会把 180 当流派。
     category: str | None = None
     category_idx = -1
 
     for i in range(len(parts) - 1, -1, -1):
         tok = parts[i]
-        if i == len(parts) - 1 and _DAYS_RE.match(tok):
-            continue  # 末尾的纯数字是天数，不是流派
+        if i == len(parts) - 1 and _NUMBER_RE.match(tok):
+            continue  # 末尾的纯数字是可选数字，不是流派
         resolved = normalize_category(tok)
         if resolved:
             category, category_idx = resolved, i
@@ -93,24 +102,30 @@ def parse_episode_category(
             f'未找到流派 "{candidate}"，发送 #流派 查看所有流派',
         )
 
-    # -- 2. 流派左侧 = 活动名；右侧 = 只允许天数 --
+    # -- 2. 流派左侧 = 活动名；右侧 = 只允许数字 --
     episode_tokens = parts[:category_idx]
     trailing = parts[category_idx + 1:]
 
     if not episode_tokens:
         return CommandArgs(None, None, None, f"缺少活动名，格式：{usage}")
 
-    days: int | None = None
+    value: int | None = None
     for j, tok in enumerate(trailing):
-        m = _DAYS_RE.match(tok)
-        if allow_days and j == 0 and m:
-            days = int(m.group(1))
+        m = _NUMBER_RE.match(tok)
+        if allow_number and j == 0 and m:
+            value = int(m.group(1))
             continue
-        # 流派右边只可能是天数：不是数字就是写错的天数，多半是多打的参数
+        # 流派右边只可能是一个数字：不是数字，或者该指令不接受数字
         if j == 0:
+            if m:
+                # 是数字但本指令不支持 → 说清楚，别让用户以为格式写错了
+                return CommandArgs(
+                    None, None, None,
+                    f"该指令不接受数字参数（收到 {tok}）。\n格式：{usage}",
+                )
             return CommandArgs(
                 None, None, None,
-                f"天数格式错误：{tok}，请输入数字",
+                f"末尾参数应为数字，收到：{tok}\n格式：{usage}",
             )
         return CommandArgs(
             None, None, None,
@@ -133,4 +148,4 @@ def parse_episode_category(
                     f"格式：{usage}",
                 )
 
-    return CommandArgs(" ".join(episode_tokens), category, days, None)
+    return CommandArgs(" ".join(episode_tokens), category, value, None)

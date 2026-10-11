@@ -32,7 +32,7 @@ async def handle_stale(match: re.Match, group_id: int, user_id: int, operation_i
     parsed = parse_episode_category(
         args,
         "#待压人 <活动名> <流派> [天数]",
-        allow_days=True,
+        allow_number=True,
     )
     if parsed.error:
         return parsed.error

@@ -436,14 +436,129 @@ class TestHandleHighDifficulty:
 
     @pytest.mark.asyncio
     async def test_extra_arg_not_silently_dropped(self):
-        """多余参数必须明确报错，不能静默丢弃。
+        """末位非数字文本必须明确报错，不能静默丢弃。
 
-        #高难 不接受天数参数，所以流派右侧任何 token 都会被
-        parse_episode_category 判为非法（报「天数格式错误」或「无法识别」）。
+        #高难 只接受末尾一个数字，任何非数字 token 都是格式错误。
         """
         match = make_match("#高难 巴别塔 四星队 extra")
         result = await handle_high_difficulty(match, group_id=1, user_id=1)
-        assert "天数格式错误" in result or "无法识别" in result or "无法确定" in result
+        assert "应为数字" in result or "无法识别" in result or "无法确定" in result
+
+
+class TestThreshold:
+    """人数阈值参数：0 < 人数 <= 13，省略时默认 10。"""
+
+    @staticmethod
+    def _client(records):
+        mock_instance = AsyncMock()
+        mock_instance.search_records = AsyncMock(
+            return_value=MockSearchResult(count=len(records), count_valid=len(records), records=records)
+        )
+        mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+        mock_instance.__aexit__ = AsyncMock(return_value=False)
+        return mock_instance
+
+    @pytest.mark.asyncio
+    async def test_default_threshold_is_ten(self):
+        """不传人数 → 用默认 10，9 人不算高难"""
+        match = make_match("#高难 惊霆无声 四星队")
+        with patch("qq_bot.commands.high_difficulty.WikiClient") as MockClient:
+            MockClient.return_value = self._client([bot_record("12-20", 9)])
+            result = await handle_high_difficulty(match, group_id=1, user_id=1)
+            assert "无高难关卡" in result
+            assert "10 人" in result
+
+    @pytest.mark.asyncio
+    async def test_custom_threshold_lower(self):
+        """传 6 → 最少 6 人的关卡应命中（这是精一1级这类基数小的流派要的）"""
+        match = make_match("#高难 惊霆无声 精一1级 6")
+        with patch("qq_bot.commands.high_difficulty.WikiClient") as MockClient:
+            MockClient.return_value = self._client([bot_record("12-20", 6)])
+            result = await handle_high_difficulty(match, group_id=1, user_id=1)
+            text = result if isinstance(result, str) else "\n".join(result)
+            assert "高难关卡" in text
+            assert "最少 6 人" in text
+            assert "6 人及以上" in text
+
+    @pytest.mark.asyncio
+    async def test_custom_threshold_passed_to_api_flow(self):
+        """阈值要真正传进过滤逻辑，不能只是显示"""
+        match = make_match("#高难 惊霆无声 四星队 12")
+        with patch("qq_bot.commands.high_difficulty.WikiClient") as MockClient:
+            # 最少 11 人 → 阈值 12 时不该命中
+            MockClient.return_value = self._client([bot_record("H12-4", 11)])
+            result = await handle_high_difficulty(match, group_id=1, user_id=1)
+            assert "无高难关卡" in result
+            assert "12 人" in result
+
+    @pytest.mark.asyncio
+    async def test_threshold_one_is_valid_lower_bound(self):
+        """下边界 1 合法（任何有人打的关卡都算）"""
+        match = make_match("#高难 惊霆无声 四星队 1")
+        with patch("qq_bot.commands.high_difficulty.WikiClient") as MockClient:
+            MockClient.return_value = self._client([bot_record("12-2", 1)])
+            result = await handle_high_difficulty(match, group_id=1, user_id=1)
+            text = result if isinstance(result, str) else "\n".join(result)
+            assert "高难关卡" in text
+
+    @pytest.mark.asyncio
+    async def test_threshold_thirteen_is_valid_upper_bound(self):
+        """上边界 13 合法（队伍人数上限）"""
+        match = make_match("#高难 惊霆无声 四星队 13")
+        with patch("qq_bot.commands.high_difficulty.WikiClient") as MockClient:
+            MockClient.return_value = self._client([bot_record("H12-4", 13)])
+            result = await handle_high_difficulty(match, group_id=1, user_id=1)
+            text = result if isinstance(result, str) else "\n".join(result)
+            assert "高难关卡" in text
+
+    @pytest.mark.asyncio
+    async def test_threshold_zero_rejected(self):
+        """0 不合法（要求 0 < x）"""
+        match = make_match("#高难 惊霆无声 四星队 0")
+        result = await handle_high_difficulty(match, group_id=1, user_id=1)
+        assert "1–13" in result or "1-13" in result
+
+    @pytest.mark.asyncio
+    async def test_threshold_fourteen_rejected(self):
+        """超过 13 不合法"""
+        match = make_match("#高难 惊霆无声 四星队 14")
+        result = await handle_high_difficulty(match, group_id=1, user_id=1)
+        assert "1–13" in result or "1-13" in result
+
+    @pytest.mark.asyncio
+    async def test_threshold_out_of_range_does_not_call_api(self):
+        """越界时不该白跑一次 API 调用"""
+        match = make_match("#高难 惊霆无声 四星队 99")
+        with patch("qq_bot.commands.high_difficulty.WikiClient") as MockClient:
+            mock_instance = self._client([])
+            MockClient.return_value = mock_instance
+            await handle_high_difficulty(match, group_id=1, user_id=1)
+            mock_instance.search_records.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_threshold_with_space_episode(self):
+        """含空格活动名 + 人数阈值 同时出现也要正确切分"""
+        match = make_match("#高难 矢量突破#3 拟生态 四星队 8")
+        with patch("qq_bot.commands.high_difficulty.WikiClient") as MockClient:
+            mock_instance = self._client([bot_record("BB-1", 8)])
+            MockClient.return_value = mock_instance
+            result = await handle_high_difficulty(match, group_id=1, user_id=1)
+            conditions = mock_instance.search_records.call_args[1]["conditions"]
+            fields = {c["field"]: c["value"] for c in conditions}
+            assert fields["episode"] == "矢量突破#3 拟生态"
+            assert fields["category"] == "四星队"
+            text = result if isinstance(result, str) else "\n".join(result)
+            assert "最少 8 人" in text
+
+    @pytest.mark.asyncio
+    async def test_days_suffix_still_accepted(self):
+        """兼容 "6天" 这种写法（与 #待压人 的解析保持一致）"""
+        match = make_match("#高难 惊霆无声 四星队 6天")
+        with patch("qq_bot.commands.high_difficulty.WikiClient") as MockClient:
+            MockClient.return_value = self._client([bot_record("12-20", 6)])
+            result = await handle_high_difficulty(match, group_id=1, user_id=1)
+            text = result if isinstance(result, str) else "\n".join(result)
+            assert "最少 6 人" in text
 
 
 # ============================================================
@@ -476,6 +591,5 @@ class TestHandlerRouting:
     def test_help_lists_high_difficulty(self):
         from formatter.help import format_help
         assert "#高难 <活动名> <流派>" in format_help()
-
     def test_threshold_is_ten(self):
         assert HIGH_TEAM_THRESHOLD == 10

@@ -132,7 +132,7 @@ class TestHandleStale:
         """多余参数要明确报错，不能静默丢弃"""
         match = make_match("#待压人 惊霆无声 四星队 180 extra")
         result = await handle_stale(match, group_id=1, user_id=1)
-        assert "无法识别" in result or "天数格式错误" in result
+        assert "应为数字" in result or "无法识别" in result
 
     @pytest.mark.asyncio
     async def test_custom_days(self):

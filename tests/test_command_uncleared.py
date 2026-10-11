@@ -87,7 +87,7 @@ class TestHandleUncleared:
         """多余参数要明确报错，不能静默丢弃"""
         match = make_match("#未通关 惊霆无声 四星队 extra")
         result = await handle_uncleared(match, group_id=1, user_id=1)
-        assert "无法识别" in result or "格式错误" in result
+        assert "应为数字" in result or "无法识别" in result or "格式错误" in result
 
     @pytest.mark.asyncio
     async def test_successful_query(self):

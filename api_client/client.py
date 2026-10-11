@@ -360,12 +360,46 @@ class WikiClient:
         *,
         conditions: list[dict[str, Any]],
         skip: int = 0,
+        fetch_all: bool = False,
+        max_pages: int = 4,
     ) -> SearchResult:
         """多条件组合检索。
 
         对应 POST /bot/search-records。
         conditions 为 [{field, value}, ...]，1-8 条，同一 field 只能出现一次。
+
+        fetch_all=True 时会自动翻页直到取完 count 条（或达到 max_pages 上限），
+        返回的 SearchResult.records 为**合并后**的完整列表，count/count_valid
+        仍取服务端的权威值。
+
+        为什么需要：端点单页固定 80 条。实测活动的记录数可能超页
+        （如 惊霆无声/精一1级 = 110 条），只取第一页会让本地统计漏数据。
+        上限默认 4 页（320 条），避免极端情况下打爆 20 次/分钟的限频。
         """
         payload = {"conditions": conditions, "skip": skip}
         data = await self._post("/search-records", payload)
-        return SearchResult.from_dict(data)
+        result = SearchResult.from_dict(data)
+
+        if not fetch_all or result.count <= len(result.records):
+            return result
+
+        records = list(result.records)
+        seen = {r.id for r in records if r.id}
+        pages = 1
+        while len(records) < result.count and pages < max_pages:
+            payload = {"conditions": conditions, "skip": len(records)}
+            data = await self._post("/search-records", payload)
+            page = SearchResult.from_dict(data)
+            if not page.records:
+                break
+            for rec in page.records:
+                # 跨页按 id 去重，防止服务端分页边界不稳定导致重复计数
+                if rec.id and rec.id in seen:
+                    continue
+                if rec.id:
+                    seen.add(rec.id)
+                records.append(rec)
+            pages += 1
+
+        result.records = records
+        return result
