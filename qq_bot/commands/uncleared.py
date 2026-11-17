@@ -5,8 +5,12 @@
 
 """#未通关 指令 - 查未通关关卡
 
-突袭等效普通规则：has_challenge=True 的关卡，如果只有 normal
-未通关但没有 challenge 未通关，说明突袭已通过，普通视为已通关，不展示。
+两条过滤规则：
+1. 突袭等效普通：has_challenge=True 的关卡，如果只有 normal 未通关但没有
+   challenge 未通关，说明突袭已通过，普通视为已通关，不展示。
+2. 特殊关卡剔除：固定编队 / 剧情演绎 / 0 人地图等机制性不可达的关卡，
+   练度限制流派无法参与，不应算作「未通关」。清单见 resolver/special_levels.py
+   （wiki 侧对这类关卡的排除不完整，本项目自行兜底）。
 """
 import logging
 import re
@@ -16,6 +20,7 @@ from resolver.category import normalize_category
 from resolver.command_args import parse_episode_category
 from resolver.episode import resolve_aggregate_episodes
 from resolver.episode_short import resolve_episode_short, format_episode_choices
+from resolver.special_levels import is_excluded_episode, is_excluded_level
 from formatter.uncleared import format_uncleared
 from config import config
 
@@ -26,15 +31,26 @@ def filter_uncleared(
     uncleared: list[dict],
     operation_index: dict | None = None,
 ) -> list[dict]:
-    """过滤未通关列表，处理突袭等效普通。
+    """过滤未通关列表。
+
+    先剔除机制性不可达的特殊关卡（固定编队/剧情演绎/0人地图），
+    再处理「突袭等效普通」。
 
     has_challenge=True 的关卡：
     - 只有 normal 未通关 → 去掉（突袭已通过）
     - 只有 challenge 或两个都有 → 保留
     """
-    if not operation_index:
+    # -- 1. 剔除特殊关卡 --
+    kept = [item for item in uncleared if not is_excluded_level(item.get("operation", ""))]
+    dropped = len(uncleared) - len(kept)
+    if dropped:
+        logger.info(f"剔除 {dropped} 条机制性不可达的特殊关卡")
+    uncleared = kept
+
+    if not uncleared or not operation_index:
         return uncleared
 
+    # -- 2. 突袭等效普通 --
     # 按 operation 分组
     by_op: dict[str, list[dict]] = {}
     for item in uncleared:
@@ -84,6 +100,9 @@ async def handle_uncleared(match: re.Match, group_id: int, user_id: int, operati
     # 尝试聚合活动解析（如"剿灭"→多个episode）
     agg_episodes = resolve_aggregate_episodes(episode_input)
     if agg_episodes:
+        agg_episodes = [ep for ep in agg_episodes if not is_excluded_episode(ep)]
+        if not agg_episodes:
+            return f"ℹ️ {episode_input} 属于特殊玩法，不做未通关统计。"
         logger.info(f"#未通关指令(聚合): episodes={agg_episodes}, category={category}")
         try:
             async with WikiClient(base_url=config.wiki_base_url, token=config.wiki_api_token) as client:
@@ -119,7 +138,11 @@ async def handle_uncleared(match: re.Match, group_id: int, user_id: int, operati
         episode = episode_input
     
     logger.info(f"#未通关指令: episode={episode}, category={category}")
-    
+
+    # 整块排除的特殊玩法活动（多队编成/特殊规则等），不统计未通关
+    if is_excluded_episode(episode):
+        return f"ℹ️ {episode} 属于特殊玩法，不做未通关统计。"
+
     try:
         # 调用wiki API查询未通关关卡
         async with WikiClient(base_url=config.wiki_base_url, token=config.wiki_api_token) as client:

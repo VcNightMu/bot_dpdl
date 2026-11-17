@@ -10,6 +10,12 @@ from .high_difficulty import (
     difficulty_label,
     find_high_difficulty,
 )
+from .special_levels import (
+    EXCLUDED_EPISODES,
+    EXCLUDED_LEVELS,
+    is_excluded_episode,
+    is_excluded_level,
+)
 
 __all__ = [
     "resolve_operation",
@@ -26,4 +32,8 @@ __all__ = [
     "HighDifficultyRecord",
     "difficulty_label",
     "find_high_difficulty",
+    "EXCLUDED_EPISODES",
+    "EXCLUDED_LEVELS",
+    "is_excluded_episode",
+    "is_excluded_level",
 ]
