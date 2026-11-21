@@ -27,7 +27,9 @@ pass  # 仓库根已由 _REPO_ROOT 注入 sys.path
 from api_client import WikiAPIValidationError
 from qq_bot.commands.operator_records import (
     _extract_friendly_message,
+    _extract_unrecognized_name,
     _parse_combo,
+    _split_operator_skill,
     handle_operator_records,
 )
 
@@ -552,3 +554,182 @@ class TestComboQuery:
 
             result = await handle_operator_records(match, group_id=1, user_id=1)
             assert result == "干员「不存在的干员XYZ」未识别"
+
+
+class TestSkillSuffix:
+    """技能号解析：银灰3 → ("银灰", "3")；不写则任意技能"""
+
+    def test_split_with_skill(self):
+        assert _split_operator_skill("银灰3") == ("银灰", "3")
+        assert _split_operator_skill("银灰1") == ("银灰", "1")
+        assert _split_operator_skill("银灰2") == ("银灰", "2")
+
+    def test_split_without_skill(self):
+        assert _split_operator_skill("银灰") == ("银灰", None)
+        assert _split_operator_skill("La Pluma") == ("La Pluma", None)
+
+    def test_name_ending_with_digit_is_split_first(self):
+        """Castle-3 这类名字会先按技能号拆，由调用方在 API 报错后回退。"""
+        assert _split_operator_skill("Castle-3") == ("Castle-", "3")
+        assert _split_operator_skill("Lancet-2") == ("Lancet-", "2")
+
+    def test_no_split_cases(self):
+        # 结尾不是 1/2/3，或纯数字（名字至少 1 字符）
+        assert _split_operator_skill("12F") == ("12F", None)
+        assert _split_operator_skill("3") == ("3", None)
+        assert _split_operator_skill("4") == ("4", None)
+        assert _split_operator_skill("") == ("", None)
+
+    def test_extract_unrecognized_name(self):
+        msg = "干员「Castle-」未识别"
+        assert _extract_unrecognized_name(msg) == "Castle-"
+        assert _extract_unrecognized_name("参数错误") is None
+        assert _extract_unrecognized_name("") is None
+
+
+class TestSkillQuery:
+    """#干员记录 指定技能查询"""
+
+    def _mock_client(self, result=None, exc=None, side_effect=None):
+        mock_instance = AsyncMock()
+        if side_effect is not None:
+            mock_instance.search_records = AsyncMock(side_effect=side_effect)
+        elif exc is not None:
+            mock_instance.search_records = AsyncMock(side_effect=exc)
+        else:
+            mock_instance.search_records = AsyncMock(return_value=result)
+        mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+        mock_instance.__aexit__ = AsyncMock(return_value=False)
+        return mock_instance
+
+    @pytest.mark.asyncio
+    async def test_single_operator_with_skill(self):
+        """银灰3 → members 带 skill=3"""
+        match = make_match("#干员记录 银灰3 无精英满级")
+        mock_result = MockSearchResult(count=42, count_valid=42)
+
+        with patch(
+            "qq_bot.commands.operator_records.normalize_category",
+            return_value="无精英满级",
+        ), patch("qq_bot.commands.operator_records.WikiClient") as MockClient:
+            mock_instance = self._mock_client(result=mock_result)
+            MockClient.return_value = mock_instance
+
+            result = await handle_operator_records(match, group_id=1, user_id=1)
+
+            members = mock_instance.search_records.call_args_list[0].kwargs[
+                "conditions"][0]["value"]["members"]
+            assert members == [{"operator": "银灰", "skill": "3"}]
+            assert "银灰（3技能）" in result
+
+    @pytest.mark.asyncio
+    async def test_single_operator_without_skill_unchanged(self):
+        """不写技能号时 members 不带 skill 字段（任意技能）"""
+        match = make_match("#干员记录 银灰 无精英满级")
+        mock_result = MockSearchResult(count=550, count_valid=550)
+
+        with patch(
+            "qq_bot.commands.operator_records.normalize_category",
+            return_value="无精英满级",
+        ), patch("qq_bot.commands.operator_records.WikiClient") as MockClient:
+            mock_instance = self._mock_client(result=mock_result)
+            MockClient.return_value = mock_instance
+
+            result = await handle_operator_records(match, group_id=1, user_id=1)
+
+            members = mock_instance.search_records.call_args_list[0].kwargs[
+                "conditions"][0]["value"]["members"]
+            assert members == [{"operator": "银灰"}]
+            assert "技能" not in result
+
+    @pytest.mark.asyncio
+    async def test_combo_with_mixed_skills(self):
+        """组合里可分别指定技能，未指定的仍是任意技能"""
+        match = make_match("#干员记录 羽毛笔1+银灰3+史尔特尔 无精英满级")
+        mock_result = MockSearchResult(count=7, count_valid=7)
+
+        with patch(
+            "qq_bot.commands.operator_records.normalize_category",
+            return_value="无精英满级",
+        ), patch("qq_bot.commands.operator_records.WikiClient") as MockClient:
+            mock_instance = self._mock_client(result=mock_result)
+            MockClient.return_value = mock_instance
+
+            result = await handle_operator_records(match, group_id=1, user_id=1)
+
+            members = mock_instance.search_records.call_args_list[0].kwargs[
+                "conditions"][0]["value"]["members"]
+            assert members == [
+                {"operator": "羽毛笔", "skill": "1"},
+                {"operator": "银灰", "skill": "3"},
+                {"operator": "史尔特尔"},
+            ]
+            assert "羽毛笔（1技能）" in result
+            assert "银灰（3技能）" in result
+            assert "史尔特尔（" not in result
+
+    @pytest.mark.asyncio
+    async def test_fallback_for_name_ending_with_digit(self):
+        """Castle-3：先按技能号拆，API 报未识别后回退为完整干员名"""
+        match = make_match("#干员记录 Castle-3 无精英满级")
+        exc = WikiAPIValidationError(
+            '{"error":"bad_request","message":"干员「Castle-」未识别"}'
+        )
+        mock_result = MockSearchResult(count=5, count_valid=5)
+
+        with patch(
+            "qq_bot.commands.operator_records.normalize_category",
+            return_value="无精英满级",
+        ), patch("qq_bot.commands.operator_records.WikiClient") as MockClient:
+            mock_instance = self._mock_client(
+                side_effect=[exc, mock_result,
+                             MockSearchResult(0, 0), MockSearchResult(0, 0)]
+            )
+            MockClient.return_value = mock_instance
+
+            result = await handle_operator_records(match, group_id=1, user_id=1)
+
+            calls = mock_instance.search_records.call_args_list
+            first = calls[0].kwargs["conditions"][0]["value"]["members"]
+            second = calls[1].kwargs["conditions"][0]["value"]["members"]
+            assert first == [{"operator": "Castle-", "skill": "3"}]
+            assert second == [{"operator": "Castle-3"}]
+            assert "总记录：5 条" in result
+
+    @pytest.mark.asyncio
+    async def test_unknown_operator_still_reports_friendly_message(self):
+        """真正不存在的干员：回退一次后仍失败，返回服务端提示（不无限重试）"""
+        match = make_match("#干员记录 不存在的干员3 无精英满级")
+        exc = WikiAPIValidationError(
+            '{"error":"bad_request","message":"干员「不存在的干员」未识别"}'
+        )
+
+        with patch(
+            "qq_bot.commands.operator_records.normalize_category",
+            return_value="无精英满级",
+        ), patch("qq_bot.commands.operator_records.WikiClient") as MockClient:
+            mock_instance = self._mock_client(exc=exc)
+            MockClient.return_value = mock_instance
+
+            result = await handle_operator_records(match, group_id=1, user_id=1)
+            assert result == "干员「不存在的干员」未识别"
+            # 首次 + 回退重试，最多两次
+            assert mock_instance.search_records.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_no_skill_no_retry(self):
+        """未指定技能时即使报未识别也不重试（没有可回退的拆分）"""
+        match = make_match("#干员记录 不存在的干员 无精英满级")
+        exc = WikiAPIValidationError(
+            '{"error":"bad_request","message":"干员「不存在的干员」未识别"}'
+        )
+
+        with patch(
+            "qq_bot.commands.operator_records.normalize_category",
+            return_value="无精英满级",
+        ), patch("qq_bot.commands.operator_records.WikiClient") as MockClient:
+            mock_instance = self._mock_client(exc=exc)
+            MockClient.return_value = mock_instance
+
+            await handle_operator_records(match, group_id=1, user_id=1)
+            assert mock_instance.search_records.call_count == 1
